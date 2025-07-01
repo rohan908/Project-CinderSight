@@ -1,26 +1,11 @@
-name: Web CI
-
 on: [pull_request]
-
 jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18
-          cache: 'npm'
-          cache-dependency-path: web/package-lock.json
-          
-      - name: Install dependencies
-        run: cd web && npm ci
-        
-      - name: Run linting
-        run: cd web && npm run lint
-        
-      - name: Build application
-        run: cd web && npm run build
+      - uses: actions/checkout@v3
+      - name: Install node
+        uses: actions/setup-node@v3
+        with: node-version: 18
+      - run: cd web && yarn install
+      - run: cd web && yarn lint && yarn build

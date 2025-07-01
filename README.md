@@ -26,7 +26,6 @@ Project-CinderSight/
 │   │   ├── predict.py  # Placeholder for ML model
 │   │   └── db.py       # Placeholder for database
 │   └── Dockerfile
-├── model/              # ML Model Training (placeholder)
 └── docker-compose.yml  # Local Development
 ```
 
@@ -85,73 +84,6 @@ cd api
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
-
-## GitHub Workflows
-
-This project uses GitHub Actions workflows to automate testing, building, and deployment. Think of workflows as **automated robots** that perform tasks when certain events happen in your repository.
-
-### What GitHub Workflows Do:
-
-#### **Automated Tasks**
-- **Build your code** when you push changes
-- **Run tests** to ensure everything works
-- **Deploy your app** to hosting services
-- **Check code quality** (linting, formatting)
-- **Send notifications** when things break
-
-#### **When They Run**
-Workflows trigger on specific events:
-- **Push to main branch** → Deploy to production
-- **Pull request** → Run tests and checks
-- **New release** → Build and package
-- **Manual trigger** → Run on demand
-
-### Project Workflows
-
-#### **`web-ci.yml`** (Frontend CI)
-```yaml
-# Runs when someone creates a pull request
-- Installs Node.js dependencies
-- Runs linting (finds code style issues)
-- Builds the Next.js app
-- Ensures everything works before merging
-```
-
-#### **`app-ci.yml`** (Backend CI)
-```yaml
-# Runs when someone creates a pull request
-- Installs Python dependencies
-- Runs tests (if any exist)
-- Checks code formatting
-- Ensures API works correctly
-```
-
-#### **`deploy.yml`** (Deployment)
-```yaml
-# Runs when code is pushed to main branch
-- Builds both frontend and backend
-- Deploys to hosting services (when configured)
-- Updates your live website automatically
-```
-
-### Real-World Workflow Example:
-
-1. **You make changes** to your fire prediction code
-2. **You create a pull request** to merge your changes
-3. **GitHub automatically:**
-   - Runs your tests
-   - Checks code quality
-   - Builds the app
-   - Tells you if anything is broken
-4. **If everything passes**, you can safely merge
-5. **When you merge to main**, it automatically deploys to your live website
-
-### Benefits:
--  **Catch bugs early** before they reach production
--  **Automate repetitive tasks** (no more manual testing)
--  **Ensure code quality** (consistent formatting, no broken builds)
--  **Deploy automatically** (no manual deployment steps)
--  **Team collaboration** (everyone's code gets the same checks)
 
 ## Usage
 
@@ -303,4 +235,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **OpenStreetMap** for map tiles
 - **ShadCN** for beautiful UI components
 
-**CinderSight** - Predicting wildfires, protecting communities. 🇨🇦 
+**CinderSight** - Predicting wildfires, protecting communities. 🔥🇨🇦 
