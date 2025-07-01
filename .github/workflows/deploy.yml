@@ -1,8 +1,55 @@
+name: Deploy
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]
+
 jobs:
   deploy-web:
-    # e.g. Vercel or Netlify action, passing env vars from GitHub Secrets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+          
+      - name: Install dependencies
+        run: cd web && npm ci
+        
+      - name: Build application
+        run: cd web && npm run build
+        
+      # TODO: Add deployment steps for Vercel/Netlify
+      # - name: Deploy to Vercel
+      #   uses: amondnet/vercel-action@v25
+      #   with:
+      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
+      #     vercel-org-id: ${{ secrets.ORG_ID }}
+      #     vercel-project-id: ${{ secrets.PROJECT_ID }}
+      #     working-directory: ./web
+
   deploy-api:
-    # e.g. Build Docker image & push to Render / Fly.io
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+          
+      - name: Install dependencies
+        run: cd api && pip install -r requirements.txt
+        
+      # TODO: Add deployment steps for Railway/Fly.io
+      # - name: Deploy to Railway
+      #   uses: railway/deploy@v1
+      #   with:
+      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      #     service: api
