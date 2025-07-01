@@ -1,0 +1,8 @@
+on:
+  push:
+    branches: [ main ]
+jobs:
+  deploy-web:
+    # e.g. Vercel or Netlify action, passing env vars from GitHub Secrets
+  deploy-api:
+    # e.g. Build Docker image & push to Render / Fly.io
