@@ -1,0 +1,801 @@
+FLAME AI IMPLEMENTATION:
+
+import os
+os.environ['TF_USE_LEGACY_KERAS'] = '1'
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers, models
+from sklearn.model_selection import KFold
+import random
+WARNING: Logging before InitGoogle() is written to STDERR
+E0000 00:00:1729358786.822965      77 common_lib.cc:798] Could not set metric server port: INVALID_ARGUMENT: Could not find SliceBuilder port 8471 in any of the 0 ports provided in `tpu_process_addresses`="local"
+=== Source Location Trace: === 
+learning/45eac/tfrc/runtime/common_lib.cc:479
+D1019 17:26:26.831457568      77 config.cc:196]                        gRPC EXPERIMENT call_status_override_on_cancellation   OFF (default:OFF)
+D1019 17:26:26.831473572      77 config.cc:196]                        gRPC EXPERIMENT call_v3                                OFF (default:OFF)
+D1019 17:26:26.831476934      77 config.cc:196]                        gRPC EXPERIMENT canary_client_privacy                  ON  (default:ON)
+D1019 17:26:26.831479552      77 config.cc:196]                        gRPC EXPERIMENT capture_base_context                   ON  (default:ON)
+D1019 17:26:26.831482296      77 config.cc:196]                        gRPC EXPERIMENT client_idleness                        ON  (default:ON)
+D1019 17:26:26.831484774      77 config.cc:196]                        gRPC EXPERIMENT client_privacy                         ON  (default:ON)
+D1019 17:26:26.831487150      77 config.cc:196]                        gRPC EXPERIMENT dapper_request_wire_size               OFF (default:OFF)
+D1019 17:26:26.831489463      77 config.cc:196]                        gRPC EXPERIMENT empty_experiment                       OFF (default:OFF)
+D1019 17:26:26.831491729      77 config.cc:196]                        gRPC EXPERIMENT event_engine_client                    OFF (default:OFF)
+D1019 17:26:26.831493969      77 config.cc:196]                        gRPC EXPERIMENT event_engine_dns                       ON  (default:ON)
+D1019 17:26:26.831496251      77 config.cc:196]                        gRPC EXPERIMENT event_engine_listener                  ON  (default:ON)
+D1019 17:26:26.831498548      77 config.cc:196]                        gRPC EXPERIMENT free_large_allocator                   OFF (default:OFF)
+D1019 17:26:26.831500813      77 config.cc:196]                        gRPC EXPERIMENT google_no_envelope_resolver            OFF (default:OFF)
+D1019 17:26:26.831503077      77 config.cc:196]                        gRPC EXPERIMENT http2_stats_fix                        OFF (default:OFF)
+D1019 17:26:26.831505461      77 config.cc:196]                        gRPC EXPERIMENT keepalive_fix                          OFF (default:OFF)
+D1019 17:26:26.831507755      77 config.cc:196]                        gRPC EXPERIMENT keepalive_server_fix                   ON  (default:ON)
+D1019 17:26:26.831510201      77 config.cc:196]                        gRPC EXPERIMENT loas_do_not_prefer_rekey_next_protocol OFF (default:OFF)
+D1019 17:26:26.831512527      77 config.cc:196]                        gRPC EXPERIMENT loas_prod_to_cloud_prefer_pfs_ciphers  OFF (default:OFF)
+D1019 17:26:26.831514825      77 config.cc:196]                        gRPC EXPERIMENT monitoring_experiment                  ON  (default:ON)
+D1019 17:26:26.831517166      77 config.cc:196]                        gRPC EXPERIMENT multiping                              OFF (default:OFF)
+D1019 17:26:26.831519444      77 config.cc:196]                        gRPC EXPERIMENT peer_state_based_framing               OFF (default:OFF)
+D1019 17:26:26.831521721      77 config.cc:196]                        gRPC EXPERIMENT pending_queue_cap                      ON  (default:ON)
+D1019 17:26:26.831524066      77 config.cc:196]                        gRPC EXPERIMENT pick_first_happy_eyeballs              ON  (default:ON)
+D1019 17:26:26.831526361      77 config.cc:196]                        gRPC EXPERIMENT promise_based_client_call              OFF (default:OFF)
+D1019 17:26:26.831528599      77 config.cc:196]                        gRPC EXPERIMENT promise_based_inproc_transport         OFF (default:OFF)
+D1019 17:26:26.831530827      77 config.cc:196]                        gRPC EXPERIMENT promise_based_server_call              OFF (default:OFF)
+D1019 17:26:26.831533181      77 config.cc:196]                        gRPC EXPERIMENT registered_method_lookup_in_transport  ON  (default:ON)
+D1019 17:26:26.831535487      77 config.cc:196]                        gRPC EXPERIMENT rfc_max_concurrent_streams             ON  (default:ON)
+D1019 17:26:26.831537904      77 config.cc:196]                        gRPC EXPERIMENT round_robin_delegate_to_pick_first     ON  (default:ON)
+D1019 17:26:26.831541453      77 config.cc:196]                        gRPC EXPERIMENT rstpit                                 OFF (default:OFF)
+D1019 17:26:26.831544214      77 config.cc:196]                        gRPC EXPERIMENT schedule_cancellation_over_write       OFF (default:OFF)
+D1019 17:26:26.831546833      77 config.cc:196]                        gRPC EXPERIMENT server_privacy                         ON  (default:ON)
+D1019 17:26:26.831549299      77 config.cc:196]                        gRPC EXPERIMENT tcp_frame_size_tuning                  OFF (default:OFF)
+D1019 17:26:26.831551695      77 config.cc:196]                        gRPC EXPERIMENT tcp_rcv_lowat                          OFF (default:OFF)
+D1019 17:26:26.831554040      77 config.cc:196]                        gRPC EXPERIMENT trace_record_callops                   OFF (default:OFF)
+D1019 17:26:26.831556329      77 config.cc:196]                        gRPC EXPERIMENT unconstrained_max_quota_buffer_size    OFF (default:OFF)
+D1019 17:26:26.831558547      77 config.cc:196]                        gRPC EXPERIMENT v3_backend_metric_filter               OFF (default:OFF)
+D1019 17:26:26.831560851      77 config.cc:196]                        gRPC EXPERIMENT v3_channel_idle_filters                ON  (default:ON)
+D1019 17:26:26.831563178      77 config.cc:196]                        gRPC EXPERIMENT v3_compression_filter                  ON  (default:ON)
+D1019 17:26:26.831565615      77 config.cc:196]                        gRPC EXPERIMENT v3_server_auth_filter                  OFF (default:OFF)
+D1019 17:26:26.831567856      77 config.cc:196]                        gRPC EXPERIMENT work_serializer_clears_time_cache      OFF (default:OFF)
+D1019 17:26:26.831570094      77 config.cc:196]                        gRPC EXPERIMENT work_serializer_dispatch               OFF (default:OFF)
+D1019 17:26:26.831572387      77 config.cc:196]                        gRPC EXPERIMENT write_size_cap                         ON  (default:ON)
+D1019 17:26:26.831574715      77 config.cc:196]                        gRPC EXPERIMENT write_size_policy                      ON  (default:ON)
+D1019 17:26:26.831577083      77 config.cc:196]                        gRPC EXPERIMENT wrr_delegate_to_pick_first             ON  (default:ON)
+I1019 17:26:26.831792531      77 ev_epoll1_linux.cc:123]               grpc epoll fd: 56
+D1019 17:26:26.831805893      77 ev_posix.cc:113]                      Using polling engine: epoll1
+D1019 17:26:26.845054820      77 lb_policy_registry.cc:46]             registering LB policy factory for "priority_experimental"
+D1019 17:26:26.845067006      77 lb_policy_registry.cc:46]             registering LB policy factory for "outlier_detection_experimental"
+D1019 17:26:26.845075249      77 lb_policy_registry.cc:46]             registering LB policy factory for "weighted_target_experimental"
+D1019 17:26:26.845078518      77 lb_policy_registry.cc:46]             registering LB policy factory for "pick_first"
+D1019 17:26:26.845081586      77 lb_policy_registry.cc:46]             registering LB policy factory for "round_robin"
+D1019 17:26:26.845084422      77 lb_policy_registry.cc:46]             registering LB policy factory for "weighted_round_robin"
+D1019 17:26:26.845112640      77 lb_policy_registry.cc:46]             registering LB policy factory for "grpclb"
+D1019 17:26:26.845124356      77 dns_resolver_plugin.cc:43]            Using EventEngine dns resolver
+D1019 17:26:26.845143214      77 lb_policy_registry.cc:46]             registering LB policy factory for "rls_experimental"
+D1019 17:26:26.845166146      77 lb_policy_registry.cc:46]             registering LB policy factory for "xds_cluster_manager_experimental"
+D1019 17:26:26.845174055      77 lb_policy_registry.cc:46]             registering LB policy factory for "xds_cluster_impl_experimental"
+D1019 17:26:26.845178254      77 lb_policy_registry.cc:46]             registering LB policy factory for "cds_experimental"
+D1019 17:26:26.845182622      77 lb_policy_registry.cc:46]             registering LB policy factory for "xds_override_host_experimental"
+D1019 17:26:26.845186027      77 lb_policy_registry.cc:46]             registering LB policy factory for "xds_wrr_locality_experimental"
+D1019 17:26:26.845189122      77 lb_policy_registry.cc:46]             registering LB policy factory for "ring_hash_experimental"
+D1019 17:26:26.845192648      77 certificate_provider_registry.cc:33]  registering certificate provider factory for "file_watcher"
+D1019 17:26:26.845239393      77 channel_init.cc:157]                  Filter server-auth not registered, but is referenced in the after clause of grpc-server-authz when building channel stack SERVER_CHANNEL
+I1019 17:26:26.846806273      77 ev_epoll1_linux.cc:359]               grpc epoll fd: 58
+I1019 17:26:26.847897143      77 tcp_socket_utils.cc:689]              Disabling AF_INET6 sockets because ::1 is not available.
+I1019 17:26:26.851685722     177 socket_utils_common_posix.cc:452]     Disabling AF_INET6 sockets because ::1 is not available.
+I1019 17:26:26.851741532     177 socket_utils_common_posix.cc:379]     TCP_USER_TIMEOUT is available. TCP_USER_TIMEOUT will be used thereafter
+E1019 17:26:26.857791765     171 oauth2_credentials.cc:238]            oauth_fetch: UNKNOWN:C-ares status is not ARES_SUCCESS qtype=A name=metadata.google.internal. is_balancer=0: Domain name not found {created_time:"2024-10-19T17:26:26.857773244+00:00", grpc_status:2}
+def seed_everything(seed=0):
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    # Set the random seed for TensorFlow. Note: I used `1` in the original training process.
+    # Changing it now could affect reproducibility for the trained models.
+    # This was an oversight; the seed should have been variable for each fold.
+    tf.keras.utils.set_random_seed(1)  
+    tf.config.experimental.enable_op_determinism()
+def get_strategy():
+    try:
+        tpu = tf.distribute.cluster_resolver.TPUClusterResolver(tpu='local')
+        tf.config.experimental_connect_to_cluster(tpu)
+        tf.tpu.experimental.initialize_tpu_system(tpu)
+        strategy = tf.distribute.TPUStrategy(tpu)
+        keras.mixed_precision.set_global_policy('mixed_bfloat16')
+    except:
+        strategy = tf.distribute.get_strategy()
+
+    AUTO = tf.data.experimental.AUTOTUNE
+    replicas = strategy.num_replicas_in_sync
+    print("REPLICAS: ", replicas)
+    return strategy, replicas
+strategy, replicas = get_strategy()
+INFO:tensorflow:Deallocate tpu buffers before initializing tpu system.
+INFO:tensorflow:Initializing the TPU system: local
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1729358799.011229      77 service.cc:145] XLA service 0x5b318c186b60 initialized for platform TPU (this does not guarantee that XLA will be used). Devices:
+I0000 00:00:1729358799.011283      77 service.cc:153]   StreamExecutor device (0): TPU, 2a886c8
+I0000 00:00:1729358799.011288      77 service.cc:153]   StreamExecutor device (1): TPU, 2a886c8
+I0000 00:00:1729358799.011291      77 service.cc:153]   StreamExecutor device (2): TPU, 2a886c8
+I0000 00:00:1729358799.011294      77 service.cc:153]   StreamExecutor device (3): TPU, 2a886c8
+I0000 00:00:1729358799.011297      77 service.cc:153]   StreamExecutor device (4): TPU, 2a886c8
+I0000 00:00:1729358799.011299      77 service.cc:153]   StreamExecutor device (5): TPU, 2a886c8
+I0000 00:00:1729358799.011302      77 service.cc:153]   StreamExecutor device (6): TPU, 2a886c8
+I0000 00:00:1729358799.011305      77 service.cc:153]   StreamExecutor device (7): TPU, 2a886c8
+INFO:tensorflow:Finished initializing TPU system.
+INFO:tensorflow:Found TPU system:
+INFO:tensorflow:*** Num TPU Cores: 8
+INFO:tensorflow:*** Num TPU Workers: 1
+INFO:tensorflow:*** Num TPU Cores Per Worker: 8
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:CPU:0, CPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:0, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:1, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:2, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:3, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:4, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:5, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:6, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU:7, TPU, 0, 0)
+INFO:tensorflow:*** Available Device: _DeviceAttributes(/job:localhost/replica:0/task:0/device:TPU_SYSTEM:0, TPU_SYSTEM, 0, 0)
+REPLICAS:  8
+%%writefile config.py
+class config:
+    embed_dim = 128
+    max_height = 128
+    batch_size = 16
+    epochs = 20
+    total_sequence = 20 + 5
+    awp_lambda = 0.04
+    num_awp_epoch = 5
+    
+    
+Writing config.py
+exec(open('./config.py', 'r').read()) 
+input_path = '/kaggle/input/2024-flame-ai-challenge/dataset'
+output_path = '/kaggle/working/'
+
+train_df = pd.read_csv(os.path.join(input_path,'train.csv'))
+train_df.head()
+id	u	alpha	Nt	Nx	Ny	theta_filename	ustar_filename	xi_filename
+0	804025	2	10	150	113	32	theta_K_id804025.dat	ustar_ms-1_id804025.dat	xi_id804025.dat
+1	875935	2	5	150	113	32	theta_K_id875935.dat	ustar_ms-1_id875935.dat	xi_id875935.dat
+2	930086	6	0	150	113	32	theta_K_id930086.dat	ustar_ms-1_id930086.dat	xi_id930086.dat
+3	661713	4	5	150	113	32	theta_K_id661713.dat	ustar_ms-1_id661713.dat	xi_id661713.dat
+4	633229	2	0	150	113	32	theta_K_id633229.dat	ustar_ms-1_id633229.dat	xi_id633229.dat
+# load data
+def load_dataX(idx, df):
+    csv_file = df.reset_index().to_dict(orient='list')
+    dir_path = os.path.join(input_path, "train")
+    id = csv_file['id'][idx]
+    nt, Nx, Ny = csv_file['Nt'][idx], csv_file['Nx'][idx], csv_file['Ny'][idx]
+    theta = np.fromfile(os.path.join(dir_path, csv_file['theta_filename'][idx]), dtype="<f4").reshape(nt, Nx, Ny)
+    ustar = np.fromfile(os.path.join(dir_path, csv_file['ustar_filename'][idx]), dtype="<f4").reshape(nt, Nx, Ny)
+    xi_f = np.fromfile(os.path.join(dir_path, csv_file['xi_filename'][idx]), dtype="<f4").reshape(nt, Nx, Ny)
+    uin  = csv_file['u'][idx]
+    alpha = csv_file['alpha'][idx]
+
+    return theta, ustar, xi_f, uin, alpha
+def add_surrounding_position(array):
+    # Assuming `array` shape is (batch_size, time_steps, height, width, channels)
+    batch_size, time_steps, height, width, channels = array.shape
+
+    # Padding the array: pad along the height and width dimensions only
+    padded_array = tf.pad(array, ((0, 0), (0, 0), (1, 1), (1, 1), (0, 0)), mode='constant')
+
+    # Extracting the surrounding pixels with appropriate padding
+    up = padded_array[:, :, :-2, 1:-1, :]  # 1 pixel up
+    down = padded_array[:, :, 2:, 1:-1, :]  # 1 pixel down
+    left = padded_array[:, :, 1:-1, :-2, :]  # 1 pixel left
+    right = padded_array[:, :, 1:-1, 2:, :]  # 1 pixel right
+    up_left = padded_array[:, :, :-2, :-2, :]  # 1 pixel up, 1 pixel left
+    up_right = padded_array[:, :, :-2, 2:, :]  # 1 pixel up, 1 pixel right
+    down_left = padded_array[:, :, 2:, :-2, :]  # 1 pixel down, 1 pixel left
+    down_right = padded_array[:, :, 2:, 2:, :]  # 1 pixel down, 1 pixel right
+
+    # Concatenating the original array with the surrounding pixels
+    combined_array = tf.concat([
+        array,
+        up, down, left, right, up_left, up_right, down_left, down_right
+    ], axis=-1)  # Concatenating along the channel dimension
+
+    return combined_array
+theta_max = 1000#670
+ustar_max = 50#39
+uin_max = 50#9
+alpha_max = 50#25
+
+theta_min = 240
+ustar_min = -4.5
+uin_min = 2.0
+alpha_min = 0
+def normalize(data, min_val, max_val):
+    return data / max_val
+def load_data_with_next_token(df, input_path, window_size=config.total_sequence+1):
+    spatial_data = []
+    labels = []
+
+    for idx in range(len(df)):
+        # Load the 3D data (theta, ustar, xi_f)
+        theta, ustar, xi_f, uin, alpha = load_dataX(idx, df)
+        uin = np.full_like(theta, uin)
+        alpha = np.full_like(theta, alpha)
+        total_timesteps = theta.shape[0]
+
+        # Generate windows
+        for start in range(total_timesteps - window_size):
+            # Stack the spatial data for the current window (the same window size for input and label)
+            spatial_window = np.stack([
+                xi_f[start:start + window_size],   # Use xi_f as is
+                normalize(theta[start:start + window_size], theta_min, theta_max), # Normalize theta
+                normalize(ustar[start:start + window_size], ustar_min, ustar_max),
+                normalize(uin[start:start + window_size], uin_min, uin_max),     # Normalize uin
+                normalize(alpha[start:start + window_size], alpha_min, alpha_max),     # Normalize alpha
+            ], axis=-1)  # Shape (window_size, Nx, Ny, num_channels)
+
+            # Append the spatial window to the input data
+            spatial_data.append(spatial_window)
+
+    # Convert lists to numpy arrays
+    spatial_data = np.array(spatial_data) 
+    
+    return spatial_data
+
+spatial_data = load_data_with_next_token(train_df, input_path)
+
+# Check shapes
+print("Spatial Data Shape:", spatial_data.shape)  # Should be (num_samples, window_size, Nx, Ny, num_channels)
+Spatial Data Shape: (1116, 26, 113, 32, 5)
+%%writefile model_modules.py
+def positional_encoding(length, depth):
+    depth = depth/2
+
+    positions = np.arange(length)[:, np.newaxis]     # (seq, 1)
+    depths = np.arange(depth)[np.newaxis, :]/depth   # (1, depth)
+
+    angle_rates = 1 / (10000**depths)         # (1, depth)
+    angle_rads = positions * angle_rates      # (pos, depth)
+
+    pos_encoding = np.concatenate(
+        [np.sin(angle_rads), np.cos(angle_rads)],
+        axis=-1)
+
+    return tf.cast(pos_encoding, dtype=tf.float32)
+
+
+
+class MultiHeadAttention(keras.layers.Layer):
+    def __init__(self, embed_dim=128, num_heads=8, dropout=0.1, **kwargs):
+        super().__init__(**kwargs)
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.head_dim = self.embed_dim // self.num_heads
+        self.scale = (1 / self.head_dim ** 0.5)
+        self.in_proj = keras.layers.Dense(self.embed_dim * 3, use_bias=False)
+        self.out_proj = keras.layers.Dense(self.embed_dim, use_bias=False)
+        self.dropout = keras.layers.Dropout(dropout)
+        self.dropout1 = keras.layers.Dropout(dropout)
+
+    def call(self, hidden_state):
+        # Shape: (batch, sequence, height, width, dim)
+        shape = tf.shape(hidden_state)
+
+        # Project inputs to query, key, value
+        qkv = self.in_proj(hidden_state)  # Shape: (batch, sequence, height, width, embed_dim * 3)
+
+        # Reshape to (batch, sequence, height, width, num_heads, 3 * head_dim)
+        qkv = tf.reshape(qkv, [-1, shape[1], shape[2], shape[3], self.num_heads, 3 * self.head_dim])
+
+        # Split into query, key, value
+        query, key, value = tf.split(qkv, 3, axis=-1)  # Shape: (batch, sequence, height, width, num_heads, head_dim)
+
+        # Calculate attention weights across the spatial dimensions and the sequence dimension
+        attn_weights = tf.einsum("bshwid,blhwid->bhwisl",
+                                 query,
+                                 key,
+                                 ) * self.scale  # Shape: (batch, height, width, num_heads, sequence, se
+
+        lower_x = tf.linalg.band_part(tf.ones((shape[1],shape[1]), dtype=key.dtype), -1, 0)
+        upper_x = 1 - tf.linalg.band_part(tf.ones((shape[1],shape[1]), dtype=key.dtype), -1, 0)
+        attn_weights = (attn_weights * lower_x[None,None,None,None,:,:]) + (upper_x[None,None,None,None,:,:] * tf.constant([-1000],dtype=key.dtype))
+
+
+        attn_weights = tf.nn.softmax(attn_weights, axis=-1)  # Normalize attention weights
+        attn_weights = self.dropout(attn_weights)
+
+        # Calculate attention output
+        attn_output = tf.einsum("bhwisl,blhwid->bshwid", attn_weights, value)  # Shape: (batch, sequence, height, width, num_heads, head_dim)
+
+        # Reshape output to (batch, sequence, height, width, embed_dim)
+        attn_output = tf.reshape(attn_output, (-1, shape[1], shape[2], shape[3], self.embed_dim))
+
+        # Final output projection
+        output = self.out_proj(attn_output)  # Shape: (batch, sequence, height, width, embed_dim)
+
+        return self.dropout1(output)
+
+
+
+class MLPLayer(keras.layers.Layer):
+    def __init__(self, embed_dim=128, dropout=0.2, **kwargs):
+        super().__init__(**kwargs)
+        self.layer_norm = keras.layers.BatchNormalization(momentum=0.95)
+        self.fc1 = keras.layers.Dense(embed_dim*2,  activation='swish', use_bias=False)
+        self.fc2 = keras.layers.Dense(embed_dim,   use_bias=False)
+        self.dropout = keras.layers.Dropout(dropout)
+        self.dropout1 = keras.layers.Dropout(dropout)
+    def call(self, inputs):
+        x = self.layer_norm(inputs)
+        x = self.fc1(x)
+        x = self.dropout1(x)
+        x = self.fc2(x)
+        x = self.dropout(x)
+        return x + inputs
+
+    
+    
+    
+class LateDropout(tf.keras.layers.Layer):
+    def __init__(self, rate, noise_shape=None, start_step=0, **kwargs):
+        super().__init__(**kwargs)
+        self.supports_masking = True
+        self.rate = rate
+        self.start_step = start_step
+        self.dropout = tf.keras.layers.Dropout(rate, noise_shape=noise_shape)
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        agg = tf.VariableAggregation.ONLY_FIRST_REPLICA
+        self._train_counter = tf.Variable(0, dtype="int64", aggregation=agg, trainable=False)
+
+    def call(self, inputs, training=False):
+        x = tf.cond(self._train_counter < self.start_step, lambda: inputs, lambda: self.dropout(inputs, training=training))
+        if training:
+            self._train_counter.assign_add(1)
+        return x
+
+    
+    
+    
+class ECA(tf.keras.layers.Layer):
+    def __init__(self, kernel_size=5, **kwargs):
+        super().__init__(**kwargs)
+        self.supports_masking = True
+        self.kernel_size = kernel_size
+        self.conv = tf.keras.layers.Conv1D(1, kernel_size=kernel_size, strides=1, padding="same", use_bias=False)
+
+    def call(self, inputs, mask=None):
+        nn = tf.keras.layers.GlobalAveragePooling2D()(inputs)
+        nn = tf.expand_dims(nn, axis=-1)  # Add channel dimension
+        nn = self.conv(nn)
+        nn = tf.squeeze(nn, axis=-1)
+        nn = tf.nn.sigmoid(nn)
+        nn = nn[:,None,None,:]
+        return inputs * nn
+
+class CausalDWConv2D(tf.keras.layers.Layer):
+    def __init__(self,
+                 kernel_size=(17, 17),
+                 dilation_rate=(1, 1),
+                 use_bias=False,
+                 depthwise_initializer='glorot_uniform',
+                 name='', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.causal_pad = tf.keras.layers.ZeroPadding2D(
+            ((dilation_rate[0] * (kernel_size[0] - 1), 0), (dilation_rate[1] * (kernel_size[1] - 1), 0)), name=name + '_pad')
+        self.dw_conv = tf.keras.layers.DepthwiseConv2D(
+            kernel_size,
+            strides=(1, 1),
+            dilation_rate=dilation_rate,
+            padding='valid',
+            use_bias=use_bias,
+            depthwise_initializer=depthwise_initializer,
+            name=name + '_dwconv')
+
+    def call(self, inputs):
+        x = self.causal_pad(inputs)
+        x = self.dw_conv(x)
+        return x
+
+
+    
+class Conv2DBlock(keras.layers.Layer):
+    def __init__(self,
+                 channel_size,
+                 kernel_size,
+                 drop_rate=0.2,
+                 expand_ratio=1,
+                 activation='swish',
+                 name=None,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self.fc_expand = keras.layers.Dense(channel_size * expand_ratio,
+                                             activation=activation,
+                                             use_bias=False,
+                                             name=name + '_expand_conv')
+        self.bn = keras.layers.BatchNormalization(momentum=0.95, name=name + '_bn')
+        self.fc_project = keras.layers.Dense(channel_size, use_bias=False, name=name + '_project_conv')
+        self.dwconv = CausalDWConv2D(kernel_size, use_bias=False, name=name + '_dwconv')
+
+        self.dropout = keras.layers.Dropout(drop_rate, name=name + '_drop')
+        self.eca = ECA(kernel_size=3)
+        self.project_conv = keras.layers.Conv2D(1, kernel_size=(1, 1), padding='same', activation='sigmoid', name=name + '_project')
+
+    def call(self, inputs, eca=True):
+        # Step 1: Expand the feature map
+        x = self.fc_expand(inputs)
+
+        # Step 2: Apply depthwise convolution
+        x = self.dwconv(x)
+        x = self.bn(x)
+
+        # Step 3: Project to 1 channel for attention
+        projected = self.project_conv(x)
+
+        # Step 4: Multiply the depthwise convolution output by projected values for spatial attention
+        x = tf.multiply(x, projected)
+
+        if eca:
+            x = self.eca(x)
+
+        # Step 5: Project back to original channel size
+        x = self.fc_project(x)
+        x = self.dropout(x)
+        return x  # + inputs
+
+    
+    
+class EncoderLayer(keras.layers.Layer):
+    def __init__(self, embed_dim, num_heads, attention_dropout, dropout, name='encoder_layer', **kwargs):
+        super().__init__(**kwargs)
+        self.layer_norm1 = keras.layers.LayerNormalization(epsilon=1e-5)
+        self.attn = MultiHeadAttention(embed_dim, num_heads, attention_dropout)
+        #self.mlp = MLPLayer(embed_dim, dropout)
+        self.project = keras.layers.Dense(32, activation='swish', use_bias=False)
+        self.convlstm = keras.layers.ConvLSTM2D(embed_dim, kernel_size=(3, 3), return_sequences=True, use_bias=False, padding='same')
+    def call(self, inputs):
+        shape = tf.shape(inputs)
+        residual = inputs
+        x = self.project(inputs)
+        x = self.layer_norm1(x)
+        x = self.attn(x)
+        x = x + residual
+        x = self.convlstm(x)
+        return x
+
+    
+    
+    
+def cnn_model(inputs, input_shape, local_eca=False, embed_dim=128, dropout=0.2, activation='swish', name='cnn'):
+       
+        reshaped_inputs = tf.reshape(inputs, (-1, input_shape[-3], input_shape[-2], input_shape[-1]))
+
+        # Local Branch (No pooling)
+        local_branch = Conv2DBlock(32, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='local_conv_block_1')(reshaped_inputs, eca=local_eca)
+        local_branch = Conv2DBlock(64, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='local_conv_block_2')(local_branch, eca=local_eca)
+        local_branch = Conv2DBlock(128, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='local_conv_block_3')(local_branch, eca=local_eca)
+
+        # Global Branch (Pooling and keeping track of downsampled layers)
+        global_branch = Conv2DBlock(32, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_1')(reshaped_inputs, eca=True)
+        global_branch = layers.MaxPooling2D(pool_size=(2, 2), name='global_maxpool_1')(global_branch)
+
+        global_branch = Conv2DBlock(64, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_2')(global_branch)
+        down128 = global_branch  # Save this for merging later
+        global_branch = layers.MaxPooling2D(pool_size=(2, 2), name='global_maxpool_2')(global_branch)
+
+        global_branch = Conv2DBlock(128, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_3')(global_branch)
+        down256 = global_branch  # Save this for merging later
+        global_branch = layers.MaxPooling2D(pool_size=(2, 2), padding='same', name='global_maxpool_3')(global_branch)
+
+        global_branch = Conv2DBlock(192, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_4')(global_branch)
+        down512 = global_branch  # Save this for merging later
+        global_branch = layers.MaxPooling2D(pool_size=(2, 1), padding='same', name='global_maxpool_4')(global_branch)
+
+        # Bottleneck Layer
+        global_branch = Conv2DBlock(256, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_bottleneck_block')(global_branch)
+
+        # Global Branch Up-sampling
+        global_branch = layers.Conv2DTranspose(192, (2, 1), padding='same', strides=(2, 1), name='global_upsample_1')(global_branch)
+        global_branch = layers.Concatenate(name='merge_down_4')([global_branch, down512])  # Merge with down4
+        global_branch = Conv2DBlock(192, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_5')(global_branch)
+
+        global_branch = layers.Conv2DTranspose(128, (2, 2), padding='same', strides=(2, 2), name='global_upsample_2')(global_branch)
+        global_branch = layers.Concatenate(name='merge_down_3')([global_branch, down256])  # Merge with down3
+        global_branch = Conv2DBlock(128, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_6')(global_branch)
+
+        global_branch = layers.Conv2DTranspose(64, (2, 2), padding='same', strides=(2, 2), name='global_upsample_3')(global_branch)
+        global_branch = layers.Concatenate(name='merge_down_2')([global_branch, down128])  # Merge with down2
+        global_branch = Conv2DBlock(64, kernel_size=(3, 3), drop_rate=dropout, activation=activation, name='global_conv_block_7')(global_branch)
+
+        global_branch = layers.Conv2DTranspose(128, (2, 2), padding='same', strides=(2, 2), name='global_upsample_4')(global_branch)
+
+        features = layers.Concatenate(name='merge_features', axis=-1)([local_branch, global_branch])
+
+        features = Conv2DBlock(embed_dim, kernel_size=(1, 1), drop_rate=dropout, activation=activation, name='local_conv_block_3')(features, eca=True)
+        #features = keras.layers.BatchNormalization()(features)
+        features = tf.reshape(features, (-1, input_shape[-4], input_shape[-3], input_shape[-2], embed_dim))
+        #features = tf.nn.tanh(features)
+        model = keras.Model(inputs=inputs, outputs=features, name=name)
+        return model
+
+    
+    
+    
+class NextFramePredictor(keras.layers.Layer):
+    def __init__(self, input_shape=(5, 128, 32, 6*9), embed_dim=128, num_heads=8,
+                 attention_dropout=0.1, dropout=0.2, num_convlstm=2, 
+                 name='next_frame_predictor', **kwargs):
+        super().__init__(name=name, **kwargs)
+
+        # Create a list of ConvLSTM2D layers
+        self.conv_lstm_layers = [
+            keras.layers.ConvLSTM2D(embed_dim, kernel_size=(3, 3), return_state=True, 
+                                     use_bias=False, padding='same')
+            for _ in range(num_convlstm)
+        ]
+
+    def call(self, inputs, start=0, n_predict=config.total_sequence, return_states=False, h=None, c=None):
+        """
+        Predicts the next frames given the input frames.
+
+        Parameters:
+        - inputs: Input tensor of shape (batch_size, 5, height, width, channels).
+        - n_predict: Number of frames to predict.
+        - return_states: If True, return the hidden and cell states.
+        - h: Initial hidden states for the ConvLSTM layers.
+        - c: Initial cell states for the ConvLSTM layers.
+
+        Returns:
+        - x: Predicted frames stacked together.
+        - h, c: (optional) Final hidden and cell states of the ConvLSTM layers.
+        """
+        x = inputs
+        frames = []  # List to store predicted frames
+
+        # Initialize hidden and cell states if not provided
+        if h is None:
+            h, c = [x[:, 0]] * len(self.conv_lstm_layers), [x[:, 0]] * len(self.conv_lstm_layers)
+
+        # Loop to predict n_predict frames
+        for i in range(start, n_predict):
+            for layer_idx, layer in enumerate(self.conv_lstm_layers):
+                if i < 5 and layer_idx == 0:
+                    # For the first frame prediction with the first ConvLSTM layer
+                    x1, h[layer_idx], c[layer_idx] = layer(x[:, i:i+1], 
+                        initial_state=[h[layer_idx], c[layer_idx]] if i != 0 else None)
+                else:
+                    # For subsequent frame predictions
+                    x1, h[layer_idx], c[layer_idx] = layer(x1[:, None], 
+                        initial_state=[h[layer_idx], c[layer_idx]] if i != 0 else None)
+
+                # Residual connection for deeper layers
+                if layer_idx > 0:
+                    x1 += res
+                res = x1  # Save the output for the next layer
+
+            frames.append(x1)  # Store the predicted frame
+
+        # Stack all predicted frames together along the time dimension
+        x = tf.stack(frames, axis=1)
+
+        # Return either just the predicted frames or also the states
+        if return_states:
+            return x, h, c
+        return x
+
+
+    
+    
+class Transformer(keras.layers.Layer):
+    def __init__(self, embed_dim, num_heads, num_layers, attention_dropout, dropout, name='tr', **kwargs):
+        super().__init__(**kwargs, name=name)
+        self.blocks = [EncoderLayer(
+            embed_dim, num_heads, attention_dropout, dropout, name=f'{name}_encoder_{i}') for i in range(num_layers)]
+        self.pos_encoding = tf.Variable(positional_encoding(150, embed_dim), trainable=True, name='pos_embed')
+    def call(self, inputs):
+        x = inputs
+        x = x + tf.cast(self.pos_encoding[None,:tf.shape(x)[1],None,None,:], x.dtype)
+        for i, block in enumerate(self.blocks):
+            x = block(x)
+        return x
+
+    
+    
+    
+class Decoder(keras.layers.Layer):
+    def __init__(self, ld_start_step=55*5, **kwargs):
+        super().__init__(**kwargs)
+
+        self.dense = keras.layers.Dense(1, activation='sigmoid', name='output_layer')
+        self.dropout = LateDropout(rate=0.8, start_step=ld_start_step)
+        self.layer_norm = keras.layers.LayerNormalization(epsilon=1e-5)
+    def call(self, inputs):
+        x = inputs
+        x = self.layer_norm(x)
+        x = self.dropout(x)
+        x = self.dense(x[:,:,:113])
+        return x
+
+
+    
+    
+@keras.saving.register_keras_serializable()
+class FlameAIModel(keras.models.Model):
+    def __init__(self, input_shape=(5,config.max_height,32,5), embed_dim=128, num_heads=8,
+                 attention_dropout=0.1, dropout=0.2, num_convlstm=2, activation='swish', ld_start_step=55*5, **kwargs):
+
+        inputs = keras.Input(shape=input_shape,name='inputs')
+        x = cnn_model(inputs, input_shape, local_eca=False, embed_dim=embed_dim, dropout=dropout, activation=activation, name='cnn')(inputs)
+        x = NextFramePredictor(
+            embed_dim=embed_dim, num_convlstm=num_convlstm,
+            name='next_frame_predictor')(x)
+        x = Transformer(embed_dim, num_heads, num_convlstm, attention_dropout, dropout, name='transformer')(x)
+        x = Decoder(ld_start_step, name='decoder_layer')(x)
+
+        super().__init__(inputs=inputs, outputs=x)
+    def test_step(self, data):
+        x, y = data
+        y_pred = self(x)
+        loss = self.compiled_loss(y, y_pred)
+        self.compiled_metrics.update_state(y, y_pred)
+        result = {m.name: m.result() for m in self.metrics}
+        return result
+    def train_step(self, data):
+        x, y = data
+
+        with tf.GradientTape() as tape:
+            output= self(x, training=True)
+            loss = self.compiled_loss(y, output)
+            loss = tf.reduce_mean(loss)
+
+        trainable_vars = self.trainable_variables
+        gradients = tape.gradient(loss, trainable_vars)
+        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
+
+        self.compiled_metrics.update_state(y, output)
+        result = {m.name: m.result() for m in self.metrics}
+        return result
+    
+    def get_config(self):
+        # Returns the configuration of the model
+        config = super().get_config()
+       
+        return config
+
+    @classmethod
+    def from_config(cls, config):
+        # Create an instance of the model from the config
+        return cls(**config)
+
+    
+    
+    
+    
+    
+    
+def mse_next_20(y_true, y_pred):
+    return keras.losses.mean_squared_error(y_true[:,4:24], y_pred[:,4:24])
+
+def build_model(
+        decay_steps,
+        input_shape=(5,config.max_height,32,5),
+        embed_dim=config.embed_dim,
+        num_heads=8,
+        attention_dropout=0.1,
+        dropout=0.2,
+        num_convlstm=2,
+        ld_start_step=55*5):
+    model = FlameAIModel(
+        input_shape=input_shape, embed_dim=embed_dim, num_heads=num_heads, attention_dropout=attention_dropout, dropout=dropout, num_convlstm=num_convlstm, ld_start_step=ld_start_step)
+   
+    scheduler = keras.optimizers.schedules.CosineDecay(1e-3, decay_steps, alpha=1e-4)
+    values = [scheduler(i) for i in range(decay_steps)]
+    plt.plot(values)
+    model.compile(loss='mse',
+                optimizer=keras.optimizers.Adam(learning_rate=scheduler, weight_decay=0.1),
+                  metrics=[mse_next_20],
+                  steps_per_execution=decay_steps
+                 )
+    #model.summary(expand_nested=False)
+    return model
+Writing model_modules.py
+exec(open('./model_modules.py', 'r').read()) 
+def preprocess(x, y):
+    x = tf.concat([
+        x,
+        tf.pad(x[1:,:,:,:1] - x[:-1,:,:,:1], ((1,0),(0,0),(0,0),(0,0)), mode='constant'),
+    ], -1)
+    x = add_surrounding_position(x[None,])[0]
+    x = tf.concat([x, tf.zeros_like(x[:,:config.max_height-113])], 1)
+    return x, y
+
+
+def augment(x, y):
+    # Fire location (index 0) - No noise added
+    fire_location = x[:,:,:,:1]
+
+    # Temperature (index 1) - Adding noise
+    temperature = x[:,:,:,1:2]
+    if tf.random.uniform([], 0, 1)<0.2:
+        temperature_noise = tf.random.uniform(shape=(5, 113, 32, 1), minval=-0.066, maxval=0.066)
+        temperature = tf.clip_by_value(temperature + temperature_noise, 0, 1)
+
+    # Ustar (index 2) - Adding noise
+    ustar = x[:,:,:,2:3]
+    if tf.random.uniform([], 0, 1)<0.2:
+        ustar_noise = tf.random.uniform(shape=(5, 113, 32, 1), minval=-0.052, maxval=0.052)
+        ustar = ustar + ustar_noise
+
+    # Wind speed (index 3) - Adding noise
+    wind_speed = x[:,:,:,3:4]
+    if tf.random.uniform([], 0, 1)<0.2:
+        wind_speed_noise = tf.random.uniform(shape=[], minval=-0.012, maxval=0.012)
+        wind_speed = tf.clip_by_value(wind_speed + wind_speed_noise, 0, 1)
+
+    slope = x[:,:,:,4:5]
+    # Slope (index 4) - Adding noise
+    if tf.random.uniform([], 0, 1)<0.2:
+        slope_noise = tf.random.uniform(shape=[], minval=-0.02, maxval=0.02)
+        slope = tf.where(slope==0, slope, tf.clip_by_value(slope + slope_noise, 0, 1))
+
+    # Rebuild the tensor
+    x_augmented = tf.concat([fire_location, temperature, ustar, wind_speed, slope], axis=-1)
+
+    return x_augmented, y
+
+
+
+def build_data(x, y, train=True):
+    ds = tf.data.Dataset.from_tensor_slices((x, y))
+    #ds.cache()
+    #if train:
+        #ds = ds.map(augment, num_parallel_calls=tf.data.AUTOTUNE)
+    ds = ds.map(preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+
+    options = tf.data.Options()
+    options.experimental_deterministic = True
+    ds = ds.with_options(options)
+
+    if train:
+        ds = ds.shuffle(len(x))
+    ds = ds.batch(config.batch_size)
+    ds = ds.prefetch(tf.data.AUTOTUNE)
+    return ds
+#folds = KFold(5)
+i = 0
+#for train_idx, val_idx in folds.split(spatial_data):
+for i in range(10):
+    
+    seed_everything(i)
+    keras.backend.clear_session()
+    train_x = spatial_data#[train_idx]
+    #val_x = spatial_data[val_idx]
+
+    train_steps = len(train_x)//config.batch_size
+    train_sample = train_steps*config.batch_size
+
+    train_y = train_x[:train_sample, 1:,:113,:, 0]
+    #val_y = val_x[:,1:,:113,:, 0]
+
+    train_x = train_x[:, :][:train_sample, :5]
+    #val_x = val_x[:, :][:,:5]
+
+    train_ds = build_data(train_x, train_y)
+    #val_ds = build_data(val_x, val_y, train=False)
+    with strategy.scope():
+        model = build_model(
+            config.epochs*train_steps,
+            input_shape=(5,config.max_height,32,6*9),
+            embed_dim=config.embed_dim,
+            num_heads=8,
+            attention_dropout=0.1,
+            dropout=0.2,
+            num_convlstm=1,
+            ld_start_step=train_steps*config.num_awp_epoch)
+    
+    model.fit(
+        train_ds,
+        #validation_data=val_ds,
+        batch_size=config.batch_size,
+        epochs=config.epochs,)
+        #shuffle=True)
+
+    model.save(f'trained_model_fold{i}.keras')
+    i+=1
