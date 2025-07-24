@@ -157,3 +157,6 @@ celerybeat.pid
 .mypy_cache/
 .dmypy.json
 dmypy.json 
+
+# model/data/
+model/data/
