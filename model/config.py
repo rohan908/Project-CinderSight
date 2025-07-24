@@ -11,7 +11,7 @@ to ensure consistency across the processing pipeline.
 """Constants for the Enhanced NDWS data reader."""
 
 # Enhanced NDWS Dataset Features (19 total input features)
-INPUT_FEATURES = [
+ENHANCED_INPUT_FEATURES = [
     # Weather factors (current day) - 8 features
     'vs',        # Wind speed (m/s)
     'pr',        # Precipitation (mm)  
@@ -48,8 +48,8 @@ INPUT_FEATURES = [
 OUTPUT_FEATURES = ['FireMask']
 
 # Legacy input features from original NDWS dataset (for backward compatibility)
-INPUT_FEATURES = ['elevation', 'th', 'vs', 'tmmn', 'tmmx', 'sph', 
-                  'pr', 'pdsi', 'NDVI', 'population', 'erc', 'PrevFireMask']
+LEGACY_INPUT_FEATURES = ['elevation', 'th', 'vs', 'tmmn', 'tmmx', 'sph', 
+                          'pr', 'pdsi', 'NDVI', 'population', 'erc', 'PrevFireMask']
 
 # Enhanced Data Statistics for normalization and clipping
 # For each variable, the statistics are ordered in the form:
@@ -175,7 +175,7 @@ DEFAULT_DATA_SIZE = 64
 DEFAULT_SAMPLE_SIZE = 32
 
 # Number of input and output channels
-NUM_INPUT_CHANNELS = len(INPUT_FEATURES)
+NUM_ENHANCED_INPUT_CHANNELS = len(ENHANCED_INPUT_FEATURES)
 NUM_OUTPUT_CHANNELS = len(OUTPUT_FEATURES)
 
 # Data processing constants
