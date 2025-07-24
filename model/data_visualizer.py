@@ -9,7 +9,7 @@ import tfrecord
 
 # Import shared configuration
 from config import (
-    INPUT_FEATURES,
+    ENHANCED_INPUT_FEATURES,
     OUTPUT_FEATURES,
     ENHANCED_DATA_STATS,
     DEFAULT_DATA_SIZE,
@@ -48,7 +48,7 @@ class EnhancedNDWSVisualizer:
         """
         self.data_dir = Path(data_dir)
         self.tfrecord_files = list(self.data_dir.glob("*.tfrecord"))
-        self.feature_names = INPUT_FEATURES + OUTPUT_FEATURES
+        self.feature_names = ENHANCED_INPUT_FEATURES + OUTPUT_FEATURES
         print(f"Found {len(self.tfrecord_files)} TFRecord files")
         
     def _parse_tfrecord_example(self, record):
@@ -118,7 +118,7 @@ class EnhancedNDWSVisualizer:
                         
                         # Extract features (first 18 features)
                         features = []
-                        for feature_name in INPUT_FEATURES[:-1]:  # Exclude PrevFireMask
+                        for feature_name in ENHANCED_INPUT_FEATURES[:-1]:  # Exclude PrevFireMask
                             if feature_name in parsed:
                                 features.append(parsed[feature_name])
                             else:
@@ -190,12 +190,12 @@ class EnhancedNDWSVisualizer:
             save_path: Optional path to save the visualization figure.
         """
         features = samples['features']
-        n_features = len(INPUT_FEATURES) - 1  # Exclude PrevFireMask
+        n_features = len(ENHANCED_INPUT_FEATURES) - 1  # Exclude PrevFireMask
         
         fig, axes = plt.subplots(4, 5, figsize=(20, 16))
         axes = axes.flatten()
         
-        for i, feature_name in enumerate(INPUT_FEATURES[:-1]):
+        for i, feature_name in enumerate(ENHANCED_INPUT_FEATURES[:-1]):
             if i < len(axes):
                 ax = axes[i]
                 feature_data = features[:, :, :, i].flatten()
@@ -296,8 +296,8 @@ class EnhancedNDWSVisualizer:
         
         plt.figure(figsize=(14, 12))
         sns.heatmap(correlation_matrix, 
-                   xticklabels=INPUT_FEATURES[:-1],
-                   yticklabels=INPUT_FEATURES[:-1],
+                   xticklabels=ENHANCED_INPUT_FEATURES[:-1],
+                   yticklabels=ENHANCED_INPUT_FEATURES[:-1],
                    annot=True, fmt='.2f', cmap='RdBu_r', center=0,
                    square=True)
         plt.title('Feature Correlation Matrix', fontsize=16)
@@ -332,7 +332,7 @@ class EnhancedNDWSVisualizer:
         for i in range(8):
             ax = plt.subplot(4, 6, i+1)
             im = ax.imshow(weather_current[:, :, i], cmap='viridis')
-            ax.set_title(f'{INPUT_FEATURES[i]}')
+            ax.set_title(f'{ENHANCED_INPUT_FEATURES[i]}')
             ax.axis('off')
             plt.colorbar(im, ax=ax, shrink=0.6)
         
@@ -340,7 +340,7 @@ class EnhancedNDWSVisualizer:
         for i in range(4):
             ax = plt.subplot(4, 6, i+9)
             im = ax.imshow(weather_forecast[:, :, i], cmap='plasma')
-            ax.set_title(f'{INPUT_FEATURES[i+8]}')
+            ax.set_title(f'{ENHANCED_INPUT_FEATURES[i+8]}')
             ax.axis('off')
             plt.colorbar(im, ax=ax, shrink=0.6)
         
@@ -348,7 +348,7 @@ class EnhancedNDWSVisualizer:
         for i in range(3):
             ax = plt.subplot(4, 6, i+13)
             im = ax.imshow(terrain[:, :, i], cmap='terrain')
-            ax.set_title(f'{INPUT_FEATURES[i+12]}')
+            ax.set_title(f'{ENHANCED_INPUT_FEATURES[i+12]}')
             ax.axis('off')
             plt.colorbar(im, ax=ax, shrink=0.6)
         
@@ -356,7 +356,7 @@ class EnhancedNDWSVisualizer:
         for i in range(2):
             ax = plt.subplot(4, 6, i+16)
             im = ax.imshow(vegetation[:, :, i], cmap='Greens')
-            ax.set_title(f'{INPUT_FEATURES[i+15]}')
+            ax.set_title(f'{ENHANCED_INPUT_FEATURES[i+15]}')
             ax.axis('off')
             plt.colorbar(im, ax=ax, shrink=0.6)
         
@@ -420,7 +420,7 @@ class EnhancedNDWSVisualizer:
         
         # Feature statistics
         print(f"\nFeature Statistics:")
-        for i, feature_name in enumerate(INPUT_FEATURES[:-1]):
+        for i, feature_name in enumerate(ENHANCED_INPUT_FEATURES[:-1]):
             feature_data = features[:, :, :, i]
             valid_data = feature_data[feature_data != -1]
             

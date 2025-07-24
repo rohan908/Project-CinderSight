@@ -11,13 +11,12 @@ import tfrecord
 
 # Import shared configuration
 from config import (
-    INPUT_FEATURES,
+    ENHANCED_INPUT_FEATURES,
     OUTPUT_FEATURES,
-    INPUT_FEATURES,
     ENHANCED_DATA_STATS,
     DEFAULT_DATA_SIZE,
     DEFAULT_SAMPLE_SIZE,
-    NUM_INPUT_CHANNELS,
+    NUM_ENHANCED_INPUT_CHANNELS,
     NUM_OUTPUT_CHANNELS,
     INVALID_DATA_VALUE,
     EPSILON
@@ -113,7 +112,7 @@ def _parse_enhanced_example(
     if random_crop and center_crop:
         raise ValueError('Cannot have both random_crop and center_crop be True')
     
-    input_features = INPUT_FEATURES
+    input_features = ENHANCED_INPUT_FEATURES
     output_features = OUTPUT_FEATURES
     
     # Parse features from record
@@ -328,7 +327,7 @@ def analyze_dataset_statistics(dataset: np.ndarray):
     
     # Feature statistics
     print(f"\nFeature Statistics:")
-    for i, feature_name in enumerate(INPUT_FEATURES):
+    for i, feature_name in enumerate(ENHANCED_INPUT_FEATURES):
         feature_data = features[:, i, :, :].flatten()
         valid_data = feature_data[feature_data != -1]
         
@@ -428,7 +427,7 @@ def main(data_dir: str = "data/raw", output_dir: str = "data/processed"):
         # Dataset parameters
         data_size = DEFAULT_DATA_SIZE  # Original data resolution
         sample_size = DEFAULT_DATA_SIZE  # Full resolution (as requested)
-        num_in_channels = len(INPUT_FEATURES)  # 19 features
+        num_in_channels = len(ENHANCED_INPUT_FEATURES)  # 19 features
         
         print(f"\nProcessing parameters:")
         print(f"Data size: {data_size}x{data_size}")
@@ -522,7 +521,7 @@ def main(data_dir: str = "data/raw", output_dir: str = "data/processed"):
         
         # Save feature names and statistics
         metadata = {
-            'input_features': INPUT_FEATURES,
+            'input_features': ENHANCED_INPUT_FEATURES,
             'output_features': OUTPUT_FEATURES,
             'data_stats': ENHANCED_DATA_STATS,
             'data_size': data_size,

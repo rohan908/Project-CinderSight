@@ -160,3 +160,4 @@ dmypy.json
 
 # model/data/
 model/data/
+model/visualizations/*.png
