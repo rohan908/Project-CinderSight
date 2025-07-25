@@ -99,194 +99,172 @@ class LateDropout(nn.Module):
         else:
             return inputs
 
+# Clean, modular blocks inspired by U-Net structure
+class ConvBlock(nn.Module):
+    """Basic convolutional block with BatchNorm and ReLU"""
+    def __init__(self, in_channels, out_channels, kernel_size=3, dropout=0.2):
+        super().__init__()
+        padding = kernel_size // 2
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_channels, out_channels, kernel_size, padding=padding, bias=False),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True),
+            nn.Dropout2d(dropout)
+        )
+    
+    def forward(self, x):
+        return self.conv(x)
+
+class DownSample(nn.Module):
+    """Downsampling block with max pooling"""
+    def __init__(self, in_channels, out_channels, kernel_size=2, dropout=0.2):
+        super().__init__()
+        self.pool = nn.MaxPool2d(kernel_size)
+        self.conv = ConvBlock(in_channels, out_channels, dropout=dropout)
+    
+    def forward(self, x):
+        x = self.pool(x)
+        x = self.conv(x)
+        return x
+
+class UpSample(nn.Module):
+    """Upsampling block with transpose convolution"""
+    def __init__(self, in_channels, out_channels, skip_channels, kernel_size=2, dropout=0.2):
+        super().__init__()
+        self.up = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=kernel_size)
+        # After concat: out_channels (upsampled) + skip_channels (skip connection)
+        concat_channels = out_channels + skip_channels
+        self.conv = ConvBlock(concat_channels, out_channels, dropout=dropout)
+    
+    def forward(self, x, skip_connection=None):
+        x = self.up(x)
+        if skip_connection is not None:
+            x = torch.cat([skip_connection, x], dim=1)
+        x = self.conv(x)
+        return x
+
+class SpatialAttention(nn.Module):
+    """Simple spatial attention mechanism"""
+    def __init__(self, channels):
+        super().__init__()
+        self.attention = nn.Sequential(
+            nn.Conv2d(channels, 1, kernel_size=1),
+            nn.Sigmoid()
+        )
+    
+    def forward(self, x):
+        attention_weights = self.attention(x)
+        return x * attention_weights
+
 class ECA(nn.Module):
+    """Efficient Channel Attention"""
     def __init__(self, kernel_size=5):
         super().__init__()
         self.kernel_size = kernel_size
         self.conv = nn.Conv1d(1, 1, kernel_size=kernel_size, stride=1, padding=kernel_size//2, bias=False)
 
     def forward(self, inputs):
-        # inputs shape: (batch*seq, channels, height, width)
-        nn_out = F.adaptive_avg_pool2d(inputs, 1)  # Global average pooling
-        nn_out = nn_out.squeeze(-1).transpose(-1, -2)  # (batch*seq, 1, channels)
+        # Global average pooling
+        nn_out = F.adaptive_avg_pool2d(inputs, 1)  # (batch, channels, 1, 1)
+        nn_out = nn_out.squeeze(-1).transpose(-1, -2)  # (batch, 1, channels)
         nn_out = self.conv(nn_out)
-        nn_out = torch.sigmoid(nn_out).transpose(-1, -2).unsqueeze(-1)  # (batch*seq, channels, 1, 1)
+        nn_out = torch.sigmoid(nn_out).transpose(-1, -2).unsqueeze(-1)  # (batch, channels, 1, 1)
         return inputs * nn_out
 
-class CausalDWConv2D(nn.Module):
-    def __init__(self, channels, kernel_size=(17, 17), dilation=(1, 1)):
-        super().__init__()
-        self.kernel_size = kernel_size
-        self.dilation = dilation
-        self.pad_h = dilation[0] * (kernel_size[0] - 1)
-        self.pad_w = dilation[1] * (kernel_size[1] - 1)
-       
-        self.dw_conv = nn.Conv2d(
-            channels, channels, kernel_size,
-            stride=1, dilation=dilation,
-            padding=0, bias=False, groups=channels
-        )
-
-    def forward(self, inputs):
-        # Causal padding: pad left and top, no padding right and bottom
-        x = F.pad(inputs, (self.pad_w, 0, self.pad_h, 0), mode='constant', value=0)
-        x = self.dw_conv(x)
-        return x
-
-class Conv2DBlock(nn.Module):
-    def __init__(self, in_channels, channel_size, kernel_size, drop_rate=0.2, expand_ratio=1):
-        super().__init__()
-        self.fc_expand = nn.Linear(in_channels, channel_size * expand_ratio, bias=False)
-        self.bn = nn.BatchNorm2d(channel_size * expand_ratio, momentum=0.05)
-        self.fc_project = nn.Linear(channel_size * expand_ratio, channel_size, bias=False)
-        self.dwconv = CausalDWConv2D(channel_size * expand_ratio, kernel_size)
-        self.dropout = nn.Dropout(drop_rate)
-        self.eca = ECA(kernel_size=3)
-        self.project_conv = nn.Conv2d(channel_size * expand_ratio, 1, kernel_size=1, padding=0)
-
-    def forward(self, inputs, eca=True):
-        # inputs shape: (batch*seq, height, width, in_channels)
-        batch_seq, height, width, in_channels = inputs.shape
-       
-        # Step 1: Expand the feature map
-        x = F.silu(self.fc_expand(inputs))  # swish activation
-       
-        # Convert to conv format: (batch*seq, channels, height, width)
-        x = x.permute(0, 3, 1, 2)
-       
-        # Step 2: Apply depthwise convolution
-        x = self.dwconv(x)
-        x = self.bn(x)
-
-        # Step 3: Project to 1 channel for attention
-        projected = torch.sigmoid(self.project_conv(x))
-
-        # Step 4: Multiply the depthwise convolution output by projected values for spatial attention
-        x = x * projected
-
-        if eca:
-            x = self.eca(x)
-
-        # Convert back to linear format: (batch*seq, height, width, channels)
-        x = x.permute(0, 2, 3, 1)
-       
-        # Step 5: Project back to original channel size
-        x = self.fc_project(x)
-        x = self.dropout(x)
-        return x
-
 class CNNModel(nn.Module):
+    """
+    Clean U-Net inspired CNN with Local and Global branches for wildfire prediction
+    
+    Architecture:
+    - Local Branch: Processes features at full resolution for fine details
+    - Global Branch: U-Net style encoder-decoder for contextual understanding
+    - Feature Fusion: Combines both branches for comprehensive feature extraction
+    """
+    
     def __init__(self, input_shape, local_eca=False, embed_dim=128, dropout=0.2):
         super().__init__()
         self.input_shape = input_shape
-       
-        # Local Branch blocks
-        self.local_conv_block_1 = Conv2DBlock(input_shape[-1], 32, kernel_size=(3, 3), drop_rate=dropout)
-        self.local_conv_block_2 = Conv2DBlock(32, 64, kernel_size=(3, 3), drop_rate=dropout)
-        self.local_conv_block_3 = Conv2DBlock(64, 128, kernel_size=(3, 3), drop_rate=dropout)
-       
-        # Global Branch blocks
-        self.global_conv_block_1 = Conv2DBlock(input_shape[-1], 32, kernel_size=(3, 3), drop_rate=dropout)
-        self.global_maxpool_1 = nn.MaxPool2d(kernel_size=(2, 2))
-       
-        self.global_conv_block_2 = Conv2DBlock(32, 64, kernel_size=(3, 3), drop_rate=dropout)
-        self.global_maxpool_2 = nn.MaxPool2d(kernel_size=(2, 2))
-       
-        self.global_conv_block_3 = Conv2DBlock(64, 128, kernel_size=(3, 3), drop_rate=dropout)
-        self.global_maxpool_3 = nn.MaxPool2d(kernel_size=(2, 2))
-       
-        self.global_conv_block_4 = Conv2DBlock(128, 192, kernel_size=(3, 3), drop_rate=dropout)
-        self.global_maxpool_4 = nn.MaxPool2d(kernel_size=(2, 1))
-       
+        self.input_channels = input_shape[-1]
+        
+        # === LOCAL BRANCH (Fine-grained features) ===
+        self.local_conv1 = ConvBlock(self.input_channels, 32, dropout=dropout)
+        self.local_conv2 = ConvBlock(32, 64, dropout=dropout)  
+        self.local_conv3 = ConvBlock(64, 128, dropout=dropout)
+        self.local_attention = SpatialAttention(128) if local_eca else nn.Identity()
+        
+        # === GLOBAL BRANCH (U-Net style encoder-decoder) ===
+        # Encoder
+        self.enc1 = ConvBlock(self.input_channels, 32, dropout=dropout)
+        self.enc2 = DownSample(32, 64, dropout=dropout)
+        self.enc3 = DownSample(64, 128, dropout=dropout)  
+        self.enc4 = DownSample(128, 192, dropout=dropout)
+        
         # Bottleneck
-        self.global_bottleneck_block = Conv2DBlock(192, 256, kernel_size=(3, 3), drop_rate=dropout)
-       
-        # Upsampling layers
-        self.global_upsample_1 = nn.ConvTranspose2d(256, 192, kernel_size=(2, 1), stride=(2, 1))
-        self.global_conv_block_5 = Conv2DBlock(192 + 192, 192, kernel_size=(3, 3), drop_rate=dropout)
-       
-        self.global_upsample_2 = nn.ConvTranspose2d(192, 128, kernel_size=(2, 2), stride=(2, 2))
-        self.global_conv_block_6 = Conv2DBlock(128 + 128, 128, kernel_size=(3, 3), drop_rate=dropout)
-       
-        self.global_upsample_3 = nn.ConvTranspose2d(128, 64, kernel_size=(2, 2), stride=(2, 2))
-        self.global_conv_block_7 = Conv2DBlock(64 + 64, 64, kernel_size=(3, 3), drop_rate=dropout)
-       
-        self.global_upsample_4 = nn.ConvTranspose2d(64, 128, kernel_size=(2, 2), stride=(2, 2))
-       
-        # Final feature block
-        self.final_conv_block = Conv2DBlock(128 + 128, embed_dim, kernel_size=(1, 1), drop_rate=dropout)
-       
-        self.local_eca = local_eca
-
+        self.bottleneck = DownSample(192, 256, dropout=dropout)
+        
+        # Decoder with skip connections
+        self.dec4 = UpSample(256, 192, skip_channels=192, dropout=dropout)  # skip from enc4
+        self.dec3 = UpSample(192, 128, skip_channels=128, dropout=dropout)  # skip from enc3
+        self.dec2 = UpSample(128, 64, skip_channels=64, dropout=dropout)    # skip from enc2
+        self.dec1 = UpSample(64, 128, skip_channels=32, dropout=dropout)    # skip from enc1
+        
+        # === FEATURE FUSION ===
+        self.fusion = nn.Sequential(
+            ConvBlock(128 + 128, embed_dim, dropout=dropout),  # Local + Global
+            ECA(kernel_size=3),
+            nn.Conv2d(embed_dim, embed_dim, kernel_size=1)
+        )
+        
     def forward(self, x):
-        # Input shape: (batch, time_steps, height, width, channels)
+        """
+        Forward pass through Local and Global branches
+        
+        Args:
+            x: Input tensor (batch, time_steps, height, width, channels)
+            
+        Returns:
+            features: Feature tensor (batch, time_steps, height, width, embed_dim)
+        """
         batch_size, seq_len, height, width, channels = x.shape
         
-        # Reshape for conv processing: (batch*seq, height, width, channels)
+        # Reshape for conv processing: (batch*seq, channels, height, width)
         x = x.view(batch_size * seq_len, height, width, channels)
-       
-        # Local Branch Processing
-        local_branch = self.local_conv_block_1(x)
-        local_branch = self.local_conv_block_2(local_branch)
-        local_branch = self.local_conv_block_3(local_branch)
-       
-        # Global Branch Processing
-        global_branch = self.global_conv_block_1(x)
-        down64 = global_branch  # Save this for merging later
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_maxpool_1(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-
-        global_branch = self.global_conv_block_2(global_branch)
-        down128 = global_branch  # Save this for merging later
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_maxpool_2(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-
-        global_branch = self.global_conv_block_3(global_branch)
-        down256 = global_branch  # Save this for merging later
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_maxpool_3(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-
-        global_branch = self.global_conv_block_4(global_branch)
-        down512 = global_branch  # Save this for merging later
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_maxpool_4(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-
-        # Bottleneck Layer
-        global_branch = self.global_bottleneck_block(global_branch)
-
-        # Global Branch Up-sampling
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_upsample_1(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-        global_branch = torch.cat([global_branch, down512], dim=-1)  # Merge with down512
-        global_branch = self.global_conv_block_5(global_branch)
-
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_upsample_2(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-        global_branch = torch.cat([global_branch, down256], dim=-1)  # Merge with down256
-        global_branch = self.global_conv_block_6(global_branch)
-
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_upsample_3(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-        global_branch = torch.cat([global_branch, down128], dim=-1)  # Merge with down128
-        global_branch = self.global_conv_block_7(global_branch)
-
-        global_branch_conv = global_branch.permute(0, 3, 1, 2)
-        global_branch_conv = self.global_upsample_4(global_branch_conv)
-        global_branch = global_branch_conv.permute(0, 2, 3, 1)
-
-        features = torch.cat([local_branch, global_branch], dim=-1)
-        features = self.final_conv_block(features, eca=True)
-       
-        # Reshape back to (batch, seq, height, width, embed_dim)
-        features = features.view(batch_size, seq_len, *features.shape[1:])
-       
+        x = x.permute(0, 3, 1, 2)  # Convert to (batch*seq, channels, H, W)
+        
+        # === LOCAL BRANCH PROCESSING ===
+        local = self.local_conv1(x)
+        local = self.local_conv2(local) 
+        local = self.local_conv3(local)
+        local = self.local_attention(local)
+        
+        # === GLOBAL BRANCH PROCESSING (U-Net) ===
+        # Encoder with skip connections
+        e1 = self.enc1(x)           # 32 channels
+        e2 = self.enc2(e1)          # 64 channels  
+        e3 = self.enc3(e2)          # 128 channels
+        e4 = self.enc4(e3)          # 192 channels
+        
+        # Bottleneck
+        bottleneck = self.bottleneck(e4)  # 256 channels
+        
+        # Decoder with skip connections
+        d4 = self.dec4(bottleneck, e4)    # 192 channels
+        d3 = self.dec3(d4, e3)            # 128 channels  
+        d2 = self.dec2(d3, e2)            # 64 channels
+        global_features = self.dec1(d2, e1)  # 128 channels
+        
+        # === FEATURE FUSION ===
+        # Combine local and global features
+        combined = torch.cat([local, global_features], dim=1)  # 256 channels
+        features = self.fusion(combined)  # embed_dim channels
+        
+        # Convert back to original format: (batch*seq, embed_dim, H, W) -> (batch, seq, H, W, embed_dim)
+        features = features.permute(0, 2, 3, 1)  # (batch*seq, H, W, embed_dim)
+        features = features.view(batch_size, seq_len, height, width, -1)
+        
         return features
 
 class ConvLSTMCell(nn.Module):

@@ -297,7 +297,7 @@ def train_model(model, train_loader, use_custom_loss=True):
     model.train()
     
     # Use Adam optimizer as specified in NDWS paper
-    optimizer = optim.Adam(model.parameters(), lr=Config.learning_rate)
+    optimizer = optim.AdamW(model.parameters(), lr=Config.learning_rate)
 
     # Use linear scheduling with warmup
     warmup_steps = Config.warmup_epochs * len(train_loader)
