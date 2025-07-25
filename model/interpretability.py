@@ -1,19 +1,9 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
-import matplotlib.pyplot as plt
+from captum.attr import GradientShap
 
 from config import ENHANCED_INPUT_FEATURES
-
-# Interpretability Methods for NDWS
-import shap
-try:
-    import captum
-    from captum.attr import IntegratedGradients, GradientShap
-    CAPTUM_AVAILABLE = True
-except ImportError:
-    print("Warning: Captum not available. Install with: pip install captum")
-    CAPTUM_AVAILABLE = False
 
 class GradCAM:
     """Grad-CAM implementation for NDWS wildfire prediction"""
@@ -178,31 +168,28 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
             
     results['integrated_gradients'] = feature_importance_list
     
-    # 3. SHAP Analysis (if available)
-    if CAPTUM_AVAILABLE:
-        print("Computing SHAP values...")
-        try:
-            # Use GradientShap from Captum
-            gradient_shap = GradientShap(model)
+    # 3. SHAP Analysis
+    print("Computing SHAP values...")
+    try:
+        # Use GradientShap from Captum
+        gradient_shap = GradientShap(model)
+        
+        # Select a subset for baseline
+        baselines = test_data[:5]
+        
+        shap_values_list = []
+        for i, sample in enumerate(test_data[:5]):
+            shap_vals = gradient_shap.attribute(
+                sample.unsqueeze(0), 
+                baselines=baselines,
+                n_samples=50
+            )
+            shap_values_list.append(shap_vals.cpu().numpy())
             
-            # Select a subset for baseline
-            baselines = test_data[:5]
-            
-            shap_values_list = []
-            for i, sample in enumerate(test_data[:5]):
-                shap_vals = gradient_shap.attribute(
-                    sample.unsqueeze(0), 
-                    baselines=baselines,
-                    n_samples=50
-                )
-                shap_values_list.append(shap_vals.cpu().numpy())
-                
-            results['shap'] = shap_values_list
-            
-        except Exception as e:
-            print(f"SHAP analysis failed: {str(e)}")
-            results['shap'] = None
-    else:
+        results['shap'] = shap_values_list
+        
+    except Exception as e:
+        print(f"SHAP analysis failed: {str(e)}")
         results['shap'] = None
     
     print("Interpretability analysis complete!")
@@ -266,6 +253,8 @@ def calculate_segmentation_metrics(y_pred, y_true, threshold=0.5):
     recall = tp / (tp + fn + 1e-6)
     f1 = 2 * precision * recall / (precision + recall + 1e-6)
     iou = tp / (tp + fp + fn + 1e-6)
+
+    # print(f'TP: {tp}, FP: {fp}, FN: {fn}, TN: {tn}, precision: {precision}, recall: {recall}')
     
     return {
         'precision': precision,

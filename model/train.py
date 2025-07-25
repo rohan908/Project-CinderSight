@@ -1,15 +1,12 @@
 import os
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import matplotlib.pyplot as plt
-from sklearn.model_selection import KFold
 import random
-import math
+import traceback
 
 # Import NDWS configuration
 from config import (
@@ -55,10 +52,10 @@ class Config:
     max_height = DEFAULT_DATA_SIZE  # 64 for NDWS
     max_width = DEFAULT_DATA_SIZE   # 64 for NDWS
     batch_size = 16
+    learning_rate = 0.004
+    warmup_epochs = 1
     epochs = 20
     temporal_sequence = 2  # 2-day sequence: current day + next day
-    awp_lambda = 0.04
-    num_awp_epoch = 5
     
     # NDWS specific
     day0_features = len(WEATHER_CURRENT_FEATURES + TERRAIN_FEATURES + 
@@ -68,7 +65,7 @@ class Config:
     max_features_per_day = max(day0_features, day1_input_features)  # 15
     
     # Custom loss weights
-    fire_weight = 10.0
+    fire_weight = 20.0
     no_fire_weight = 1.0
     dice_weight = 2.0
 
@@ -187,8 +184,6 @@ def add_surrounding_position(array):
     Returns:
         expanded_array: Shape (batch_size, time_steps, height, width, expanded_channels)
     """
-    batch_size, time_steps, height, width, channels = array.shape
-
     # Padding the array: pad along the height and width dimensions only
     padded_array = F.pad(array, (0, 0, 1, 1, 1, 1, 0, 0, 0, 0), mode='constant')
 
@@ -266,38 +261,6 @@ def preprocess_ndws(x, y):
     return x.to(device), y.to(device)
     # return preprocess_ndws_temporal(x, y)
 
-def mse_loss(y_true, y_pred):
-    """MSE loss for spatial fire prediction"""
-    return F.mse_loss(y_pred.squeeze(-1), y_true.squeeze(-1))
-
-class CosineDecayScheduler:
-    def __init__(self, initial_lr, decay_steps, alpha=1e-4):
-        self.initial_lr = initial_lr
-        self.decay_steps = decay_steps
-        self.alpha = alpha
-       
-    def get_lr(self, step):
-        step = min(step, self.decay_steps)
-        cosine_decay = 0.5 * (1 + math.cos(math.pi * step / self.decay_steps))
-        decayed = (1 - self.alpha) * cosine_decay + self.alpha
-        return self.initial_lr * decayed
-
-def build_model(decay_steps, input_shape=(2, Config.max_height, Config.max_width, Config.max_features_per_day*9),
-                embed_dim=Config.embed_dim, num_heads=8, attention_dropout=0.1, dropout=0.2):
-   
-    model = FlameAIModel(
-        input_shape=input_shape, embed_dim=embed_dim, num_heads=num_heads,
-        attention_dropout=attention_dropout, dropout=dropout
-    ).to(device)
-   
-    scheduler = CosineDecayScheduler(0.004, decay_steps, alpha=1e-4)  # Use lr=0.004 as per paper
-    values = [scheduler.get_lr(i) for i in range(decay_steps)]
-    plt.plot(values)
-    plt.title('Learning Rate Schedule')
-    plt.show()
-   
-    return model, scheduler
-
 class FlameDataset(Dataset):
     """Dataset class for NDWS 2-day temporal wildfire prediction"""
     def __init__(self, x, y, train=True):
@@ -327,15 +290,27 @@ def create_dataloader(x, y, train=True):
         batch_size=Config.batch_size,
         shuffle=train,
         num_workers=0,  # Set to 0 for debugging, increase for performance
-        pin_memory=True if torch.cuda.is_available() else False
     )
 
-def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
+def train_model(model, train_loader, use_custom_loss=True):
     """Training function with custom loss and metrics for NDWS"""
     model.train()
     
     # Use Adam optimizer as specified in NDWS paper
-    optimizer = optim.Adam(model.parameters(), lr=0.004)
+    optimizer = optim.Adam(model.parameters(), lr=Config.learning_rate)
+
+    # Use linear scheduling with warmup
+    warmup_steps = Config.warmup_epochs * len(train_loader)
+    reduction_steps = (Config.epochs - Config.warmup_epochs) * len(train_loader)
+
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        optimizer,
+        schedulers=[
+            torch.optim.lr_scheduler.LinearLR(optimizer, 0.01, 1.0, warmup_steps),
+            torch.optim.lr_scheduler.LinearLR(optimizer, 1.0, 0.0, reduction_steps)
+        ],
+        milestones=[warmup_steps]
+    )
     
     # Initialize custom loss function
     if use_custom_loss:
@@ -347,27 +322,18 @@ def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
     else:
         criterion = nn.MSELoss()
    
-    step = 0
-    for epoch in range(epochs):
+    for epoch in range(Config.epochs):
         total_loss = 0
-        total_metrics = {'precision': 0, 'recall': 0, 'f1': 0, 'iou': 0}
+        total_metrics = {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'iou': 0.0}
         num_batches = 0
        
         for batch_idx, (data, target) in enumerate(train_loader):
             try:
-                # Update learning rate
-                current_lr = scheduler.get_lr(step)
-                for param_group in optimizer.param_groups:
-                    param_group['lr'] = current_lr
-            
                 optimizer.zero_grad()
-            
+
                 output = model(data)
-                    
-                if use_custom_loss:
-                    loss = criterion(output, target)
-                else:
-                    loss = mse_loss(target, output)
+                
+                loss = criterion(output, target)
                 
                 # Calculate segmentation metrics
                 metrics = calculate_segmentation_metrics(output.detach(), target.detach())
@@ -388,26 +354,28 @@ def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
                 for key in total_metrics:
                     total_metrics[key] += metrics[key]
                 num_batches += 1
-                step += 1
             
                 if batch_idx % 10 == 0:
-                    print(f'Epoch {epoch+1}/{epochs}, Batch {batch_idx}/{len(train_loader)}, '
+                    print(f'Epoch {epoch+1}/{Config.epochs}, Batch {batch_idx}/{len(train_loader)}, '
                                 f'Loss: {loss.item():.6f}, F1: {metrics["f1"]:.4f}, '
-                                f'IoU: {metrics["iou"]:.4f}, LR: {current_lr:.6f}')
+                                f'IoU: {metrics["iou"]:.4f}, LR: {scheduler.get_last_lr()[0]:.6f}')
+                
+                scheduler.step()
                             
             except Exception as e:
                 print(f"Error in batch {batch_idx}: {str(e)}")
+                traceback.print_exc()
                 continue
        
         if num_batches > 0:
             avg_loss = total_loss / num_batches
             avg_metrics = {key: val / num_batches for key, val in total_metrics.items()}
         
-            print(f'Epoch {epoch+1}/{epochs} - Avg Loss: {avg_loss:.6f}, '
+            print(f'Epoch {epoch+1}/{Config.epochs} - Avg Loss: {avg_loss:.6f}, '
                     f'Avg F1: {avg_metrics["f1"]:.4f}, Avg IoU: {avg_metrics["iou"]:.4f}, '
                     f'Avg Precision: {avg_metrics["precision"]:.4f}, Avg Recall: {avg_metrics["recall"]:.4f}')
         else:
-            print(f'Epoch {epoch+1}/{epochs} - No valid batches processed!')
+            print(f'Epoch {epoch+1}/{Config.epochs} - No valid batches processed!')
 
 # Main NDWS Training Loop
 if __name__ == "__main__":
@@ -456,20 +424,24 @@ if __name__ == "__main__":
         train_loader = create_dataloader(train_x, train_y, train=True)
        
         # Build model
-        model, scheduler = build_model(
-            Config.epochs * train_steps,
-            input_shape=(2, Config.max_height, Config.max_width, Config.max_features_per_day),  # No 9x expansion
+        model = FlameAIModel(
+            input_shape=(
+                2,
+                Config.max_height,
+                Config.max_width,
+                Config.max_features_per_day # No 9x expansion
+            ),
             embed_dim=Config.embed_dim,
             num_heads=8,
             attention_dropout=0.1,
             dropout=0.2
-        )
+        ).to(device)
        
         print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
         print(f"Training on {len(train_loader)} batches")
        
         # Train model
-        train_model(model, train_loader, scheduler, Config.epochs, use_custom_loss=True)
+        train_model(model, train_loader, use_custom_loss=True)
        
         # Save model
         model_save_path = f'flame_ai_fold{i}.pth'
