@@ -54,7 +54,7 @@ class Config:
     batch_size = 16
     learning_rate = 0.004
     warmup_epochs = 1
-    epochs = 20
+    epochs = 10
     temporal_sequence = 2  # 2-day sequence: current day + next day
     
     # NDWS specific
@@ -65,7 +65,7 @@ class Config:
     max_features_per_day = max(day0_features, day1_input_features)  # 15
     
     # Custom loss weights
-    fire_weight = 20.0
+    fire_weight = 10.0
     no_fire_weight = 1.0
     dice_weight = 2.0
 
@@ -398,7 +398,7 @@ if __name__ == "__main__":
     print(f"Target data shape: {temporal_targets.shape}")
     
     # Training loop with different folds
-    for i in range(3):  # Reduced to 3 folds for testing
+    for i in range(1):  # Reduced to 3 folds for testing
         print(f"\n" + "="*50)
         print(f"Starting Training Fold {i+1}/3")
         print("="*50)

@@ -481,7 +481,7 @@ class FlameAIModel(nn.Module):
         
         # Optional: Keep transformer for temporal reasoning
         self.transformer = Transformer(embed_dim, num_heads, 1, attention_dropout, dropout)
-        self.use_transformer = True
+        self.use_transformer = False
 
     def forward(self, x):
         """

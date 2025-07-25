@@ -117,8 +117,8 @@ class IntegratedGradients:
         """Calculate feature importance scores for NDWS features"""
         ig_attributions = self.integrated_gradients(input_tensor)
         
-        # Sum attributions across spatial dimensions for each feature
-        feature_scores = torch.mean(ig_attributions, dim=(0, 2, 3))  # Average over batch and spatial dims
+        # Sum attributions across batch, temporal, and spatial dimensions for each feature
+        feature_scores = torch.mean(ig_attributions, dim=(0, 1, 2, 3))  # Average over batch, time, and spatial dims
         
         # Calculate positive contribution ratio (PCR) for each feature
         positive_scores = torch.clamp(feature_scores, min=0)
