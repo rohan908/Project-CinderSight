@@ -397,28 +397,27 @@ if __name__ == "__main__":
     print(f"Created temporal data shape: {temporal_data.shape}")
     print(f"Target data shape: {temporal_targets.shape}")
     
-    # Training loop with different folds
-    for i in range(3):  # Reduced to 3 folds for testing
-        print(f"\n" + "="*50)
-        print(f"Starting Training Fold {i+1}/3")
-        print("="*50)
-        
-        seed_everything(i)
-       
-        # Use temporal data for training
-        train_x = temporal_data
-        train_y = temporal_targets
-        
-        # Calculate training steps
-        train_steps = len(train_x) // Config.batch_size
-        train_sample = train_steps * Config.batch_size
+    # Single training run (no folds)
+    print(f"\n" + "="*50)
+    print(f"Starting FLAME AI Training")
+    print("="*50)
+    
+    seed_everything(0)
+   
+    # Use temporal data for training
+    train_x = temporal_data
+    train_y = temporal_targets
+    
+    # Calculate training steps
+    train_steps = len(train_x) // Config.batch_size
+    train_sample = train_steps * Config.batch_size
 
-        # Trim data to fit batch size
-        train_x = train_x[:train_sample]
-        train_y = train_y[:train_sample]
+    # Trim data to fit batch size
+    train_x = train_x[:train_sample]
+    train_y = train_y[:train_sample]
 
-        print(f"Training samples: {len(train_x)}")
-        print(f"Training steps per epoch: {train_steps}")
+    print(f"Training samples: {len(train_x)}")
+    print(f"Training steps per epoch: {train_steps}")
 
         # Create data loader
         train_loader = create_dataloader(train_x, train_y, train=True)
