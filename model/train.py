@@ -74,7 +74,33 @@ class Config:
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-print(f"Using device: {device}")
+
+def print_device_info():
+    """Print detailed device information"""
+    print(f"Using device: {device}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    
+    if torch.cuda.is_available():
+        print(f"CUDA version: {torch.version.cuda}")
+        print(f"Number of GPUs: {torch.cuda.device_count()}")
+        for i in range(torch.cuda.device_count()):
+            gpu_name = torch.cuda.get_device_name(i)
+            gpu_memory = torch.cuda.get_device_properties(i).total_memory / 1024**3
+            print(f"  GPU {i}: {gpu_name} ({gpu_memory:.1f} GB)")
+        
+        # Check current GPU memory usage
+        if torch.cuda.current_device() >= 0:
+            allocated = torch.cuda.memory_allocated() / 1024**3
+            cached = torch.cuda.memory_reserved() / 1024**3
+            print(f"GPU Memory - Allocated: {allocated:.2f} GB, Cached: {cached:.2f} GB")
+    else:
+        print("No CUDA GPUs detected")
+        print("Reasons might be:")
+        print("  - No NVIDIA GPU installed")
+        print("  - CUDA not installed")
+        print("  - PyTorch not compiled with CUDA support")
+
+print_device_info()
 
 # NDWS Data Loading Functions
 def load_ndws_data(data_dir="data/processed", split="train"):
@@ -228,7 +254,17 @@ def preprocess_ndws_temporal(x, y):
 
 def preprocess_ndws(x, y):
     """Use the temporal preprocessing function"""
-    return preprocess_ndws_temporal(x, y)
+    # Temporarily disable surrounding position encoding for debugging
+    if not isinstance(x, torch.Tensor):
+        x = torch.FloatTensor(x)
+    if not isinstance(y, torch.Tensor):
+        y = torch.FloatTensor(y)
+    
+    # Target should already be (N, H, W, 1) from load_ndws_data
+    # Don't add extra dimensions
+   
+    return x.to(device), y.to(device)
+    # return preprocess_ndws_temporal(x, y)
 
 def mse_loss(y_true, y_pred):
     """MSE loss for spatial fire prediction"""
@@ -323,11 +359,11 @@ def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
                 current_lr = scheduler.get_lr(step)
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = current_lr
-               
+            
                 optimizer.zero_grad()
-               
+            
                 output = model(data)
-                
+                    
                 if use_custom_loss:
                     loss = criterion(output, target)
                 else:
@@ -340,25 +376,25 @@ def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
                 if torch.isnan(loss):
                     print(f"Warning: NaN detected at epoch {epoch+1}, batch {batch_idx}")
                     continue
-               
+            
                 loss.backward()
-                
+                        
                 # Gradient clipping for stability
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-                
+                        
                 optimizer.step()
-               
+            
                 total_loss += loss.item()
                 for key in total_metrics:
                     total_metrics[key] += metrics[key]
                 num_batches += 1
                 step += 1
-               
+            
                 if batch_idx % 10 == 0:
                     print(f'Epoch {epoch+1}/{epochs}, Batch {batch_idx}/{len(train_loader)}, '
-                          f'Loss: {loss.item():.6f}, F1: {metrics["f1"]:.4f}, '
-                          f'IoU: {metrics["iou"]:.4f}, LR: {current_lr:.6f}')
-                          
+                                f'Loss: {loss.item():.6f}, F1: {metrics["f1"]:.4f}, '
+                                f'IoU: {metrics["iou"]:.4f}, LR: {current_lr:.6f}')
+                            
             except Exception as e:
                 print(f"Error in batch {batch_idx}: {str(e)}")
                 continue
@@ -366,10 +402,10 @@ def train_model(model, train_loader, scheduler, epochs, use_custom_loss=True):
         if num_batches > 0:
             avg_loss = total_loss / num_batches
             avg_metrics = {key: val / num_batches for key, val in total_metrics.items()}
-       
+        
             print(f'Epoch {epoch+1}/{epochs} - Avg Loss: {avg_loss:.6f}, '
-                      f'Avg F1: {avg_metrics["f1"]:.4f}, Avg IoU: {avg_metrics["iou"]:.4f}, '
-                      f'Avg Precision: {avg_metrics["precision"]:.4f}, Avg Recall: {avg_metrics["recall"]:.4f}')
+                    f'Avg F1: {avg_metrics["f1"]:.4f}, Avg IoU: {avg_metrics["iou"]:.4f}, '
+                    f'Avg Precision: {avg_metrics["precision"]:.4f}, Avg Recall: {avg_metrics["recall"]:.4f}')
         else:
             print(f'Epoch {epoch+1}/{epochs} - No valid batches processed!')
 
@@ -422,7 +458,7 @@ if __name__ == "__main__":
         # Build model
         model, scheduler = build_model(
             Config.epochs * train_steps,
-            input_shape=(2, Config.max_height, Config.max_width, Config.max_features_per_day*9),
+            input_shape=(2, Config.max_height, Config.max_width, Config.max_features_per_day),  # No 9x expansion
             embed_dim=Config.embed_dim,
             num_heads=8,
             attention_dropout=0.1,

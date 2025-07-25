@@ -218,20 +218,21 @@ class CNNModel(nn.Module):
        
         self.local_eca = local_eca
 
-    def forward(self, inputs):
-        batch_size, seq_len = inputs.shape[:2]
+    def forward(self, x):
+        # Input shape: (batch, time_steps, height, width, channels)
+        batch_size, seq_len, height, width, channels = x.shape
+        
+        # Reshape for conv processing: (batch*seq, height, width, channels)
+        x = x.view(batch_size * seq_len, height, width, channels)
        
-        # Reshape to (batch*seq, height, width, channels)
-        reshaped_inputs = inputs.view(-1, *inputs.shape[2:])
+        # Local Branch Processing
+        local_branch = self.local_conv_block_1(x)
+        local_branch = self.local_conv_block_2(local_branch)
+        local_branch = self.local_conv_block_3(local_branch)
        
-        # Local Branch (No pooling)
-        local_branch = self.local_conv_block_1(reshaped_inputs, eca=self.local_eca)
-        local_branch = self.local_conv_block_2(local_branch, eca=self.local_eca)
-        local_branch = self.local_conv_block_3(local_branch, eca=self.local_eca)
-
-        # Global Branch (Pooling and keeping track of downsampled layers)
-        global_branch = self.global_conv_block_1(reshaped_inputs, eca=True)
-        # Convert to conv format for pooling
+        # Global Branch Processing
+        global_branch = self.global_conv_block_1(x)
+        down64 = global_branch  # Save this for merging later
         global_branch_conv = global_branch.permute(0, 3, 1, 2)
         global_branch_conv = self.global_maxpool_1(global_branch_conv)
         global_branch = global_branch_conv.permute(0, 2, 3, 1)
@@ -410,14 +411,16 @@ class NextFramePredictor(nn.Module):
 class EncoderLayer(nn.Module):
     def __init__(self, embed_dim, num_heads, attention_dropout, dropout):
         super().__init__()
-        self.layer_norm1 = nn.LayerNorm(32)
+        self.layer_norm1 = nn.LayerNorm(embed_dim)
         self.attn = MultiHeadAttention(embed_dim, num_heads, attention_dropout)
-        self.project = nn.Linear(embed_dim, 32, bias=False)
-        self.convlstm = ConvLSTM(32, embed_dim, kernel_size=(3, 3), return_sequences=True)
+        # Keep a projection for non-linearity, but maintain embed_dim dimensions
+        self.project = nn.Linear(embed_dim, embed_dim, bias=False)  # 128 → 128 (keep dimensions)
+        self.convlstm = ConvLSTM(embed_dim, embed_dim, kernel_size=(3, 3), return_sequences=True)
        
     def forward(self, inputs):
         residual = inputs
-        x = F.silu(self.project(inputs))  # swish activation
+        # Apply projection with swish activation (non-linearity preserved!)
+        x = F.silu(self.project(inputs))  # swish activation - RESTORED!
         x = self.layer_norm1(x)
         x = self.attn(x)
         x = x + residual
