@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-07-25T20:00:52.446491",
+  "comparison_type": "existing_models",
+  "models_compared": [
+    "flame_ai_fold_v3",
+    "flame_ai_fold_v2"
+  ],
+  "results": {
+    "flame_ai_fold_v3": {
+      "f1": 0.4254023488473249,
+      "iou": 0.2701657458563536,
+      "precision": 0.31179596174282675,
+      "recall": 0.6692518248175182,
+      "samples_evaluated": 400,
+      "avg_inference_time_ms": 50.98635017871857,
+      "input_size": "32x32"
+    },
+    "flame_ai_fold_v2": {
+      "f1": 0.45318939258197455,
+      "iou": 0.2929831166198488,
+      "precision": 0.3427226070902285,
+      "recall": 0.6687378127375483,
+      "samples_evaluated": 400,
+      "avg_inference_time_ms": 179.66006577014923,
+      "input_size": "64x64"
+    },
+    "model1_config": {
+      "embed_dim": 128,
+      "max_height": 64,
+      "max_width": 64,
+      "crop_size": 32,
+      "batch_size": 16,
+      "epochs": 10,
+      "temporal_sequence": 2,
+      "num_features": 15,
+      "fire_weight": 10.0,
+      "dice_weight": 2.0,
+      "use_random_crop": true,
+      "use_rotation": true,
+      "rotation_angles": [
+        0,
+        90,
+        180,
+        270
+      ]
+    },
+    "model2_config": {
+      "embed_dim": 128,
+      "max_height": 64,
+      "max_width": 64,
+      "batch_size": 16,
+      "epochs": 10,
+      "temporal_sequence": 2,
+      "num_features": 15,
+      "fire_weight": 10.0,
+      "dice_weight": 2.0
+    }
+  }
+}
