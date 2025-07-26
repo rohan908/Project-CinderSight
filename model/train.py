@@ -7,6 +7,7 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import random
 import traceback
+import torchvision.transforms.functional as TF
 
 # Import NDWS configuration
 from config import (
@@ -51,11 +52,17 @@ class Config:
     embed_dim = 128
     max_height = DEFAULT_DATA_SIZE  # 64 for NDWS
     max_width = DEFAULT_DATA_SIZE   # 64 for NDWS
+    crop_size = 32  # Random crop size for augmentation
     batch_size = 16
     learning_rate = 0.004
     warmup_epochs = 1
     epochs = 10
     temporal_sequence = 2  # 2-day sequence: current day + next day
+    
+    # Data augmentation settings
+    use_random_crop = True
+    use_rotation = True
+    rotation_angles = [0, 90, 180, 270]  # Rotation angles for augmentation
     
     # NDWS specific
     day0_features = len(WEATHER_CURRENT_FEATURES + TERRAIN_FEATURES + 
@@ -71,6 +78,107 @@ class Config:
 
 # Set device
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+# Data Augmentation Functions (adapted for temporal sequences)
+def create_random_crop_params(original_size, crop_size):
+    """Create random crop parameters"""
+    if crop_size >= original_size:
+        return 0, 0
+    
+    max_offset = original_size - crop_size
+    x_offset = random.randint(0, max_offset)
+    y_offset = random.randint(0, max_offset)
+    return x_offset, y_offset
+
+def apply_random_crop_temporal(temporal_data, target, crop_size):
+    """
+    Apply random crop to temporal sequence data and target
+    
+    Args:
+        temporal_data: (2, H, W, features) - 2-day sequence
+        target: (H, W, 1) - target fire mask
+        crop_size: int - size of crop
+    
+    Returns:
+        cropped_temporal_data: (2, crop_size, crop_size, features)
+        cropped_target: (crop_size, crop_size, 1)
+    """
+    if crop_size >= temporal_data.shape[1]:  # No cropping needed
+        return temporal_data, target
+        
+    # Get random crop parameters
+    x_offset, y_offset = create_random_crop_params(temporal_data.shape[1], crop_size)
+    
+    # Apply same crop to both temporal steps
+    cropped_temporal = temporal_data[:, 
+                                   x_offset:x_offset+crop_size, 
+                                   y_offset:y_offset+crop_size, 
+                                   :]
+    
+    # Apply same crop to target
+    cropped_target = target[x_offset:x_offset+crop_size, 
+                           y_offset:y_offset+crop_size, 
+                           :]
+    
+    return cropped_temporal, cropped_target
+
+def apply_rotation_temporal(temporal_data, target, angle):
+    """
+    Apply rotation to temporal sequence data and target
+    
+    Args:
+        temporal_data: (2, H, W, features) - 2-day sequence
+        target: (H, W, 1) - target fire mask
+        angle: int - rotation angle (0, 90, 180, 270)
+    
+    Returns:
+        rotated_temporal_data: (2, H, W, features)
+        rotated_target: (H, W, 1)
+    """
+    if angle == 0:
+        return temporal_data, target
+    
+    # Convert to torch tensors and add batch dimension for rotation
+    temporal_tensor = torch.FloatTensor(temporal_data)
+    target_tensor = torch.FloatTensor(target)
+    
+    # Rotate each time step separately
+    rotated_temporal = []
+    for t in range(temporal_tensor.shape[0]):
+        # Reshape to (features, H, W) for rotation
+        time_step = temporal_tensor[t].permute(2, 0, 1)  # (features, H, W)
+        rotated_time_step = TF.rotate(time_step, angle)
+        # Reshape back to (H, W, features)
+        rotated_time_step = rotated_time_step.permute(1, 2, 0)
+        rotated_temporal.append(rotated_time_step)
+    
+    # Stack time steps back together
+    rotated_temporal_data = torch.stack(rotated_temporal, dim=0).numpy()
+    
+    # Rotate target (H, W, 1) -> (1, H, W) -> rotate -> (H, W, 1)
+    target_for_rotation = target_tensor.permute(2, 0, 1)  # (1, H, W)
+    rotated_target = TF.rotate(target_for_rotation, angle)
+    rotated_target = rotated_target.permute(1, 2, 0).numpy()  # (H, W, 1)
+    
+    return rotated_temporal_data, rotated_target
+
+def check_valid_sample(target, crop_size, min_valid_ratio=0.8):
+    """
+    Check if a sample has enough valid (non -1) pixels after cropping
+    
+    Args:
+        target: Target fire mask
+        crop_size: Size of crop
+        min_valid_ratio: Minimum ratio of valid pixels required
+    
+    Returns:
+        bool: True if sample is valid
+    """
+    total_pixels = crop_size * crop_size
+    valid_pixels = np.sum(target != -1.0)
+    valid_ratio = valid_pixels / total_pixels
+    
+    return valid_ratio >= min_valid_ratio
 
 def print_device_info():
     """Print detailed device information"""
@@ -262,22 +370,75 @@ def preprocess_ndws(x, y):
     # return preprocess_ndws_temporal(x, y)
 
 class FlameDataset(Dataset):
-    """Dataset class for NDWS 2-day temporal wildfire prediction"""
-    def __init__(self, x, y, train=True):
+    """Dataset class for NDWS 2-day temporal wildfire prediction with augmentation"""
+    def __init__(self, x, y, train=True, augment_factor=4):
         self.x = x  # Temporal sequences (N, 2, H, W, features)
         self.y = y  # Target fire masks (N, H, W, 1)
         self.train = train
+        self.augment_factor = augment_factor if train else 1
+        
+        # Pre-compute valid samples after potential cropping
+        if train and Config.use_random_crop:
+            self.valid_indices = self._find_valid_samples()
+            print(f"Found {len(self.valid_indices)} valid samples for training after cropping filter")
+        else:
+            self.valid_indices = list(range(len(self.x)))
+       
+    def _find_valid_samples(self):
+        """Find samples that have enough valid data after cropping"""
+        valid_indices = []
+        
+        for i in range(len(self.x)):
+            target = self.y[i]
+            
+            # Check multiple random crops to see if this sample can produce valid crops
+            valid_crops = 0
+            for _ in range(10):  # Check 10 random crop positions
+                x_offset, y_offset = create_random_crop_params(target.shape[0], Config.crop_size)
+                cropped_target = target[x_offset:x_offset+Config.crop_size, 
+                                      y_offset:y_offset+Config.crop_size, :]
+                
+                if check_valid_sample(cropped_target, Config.crop_size):
+                    valid_crops += 1
+                    
+            if valid_crops >= 3:  # At least 3 out of 10 crops should be valid
+                valid_indices.append(i)
+                
+        return valid_indices
        
     def __len__(self):
-        return len(self.x)
+        return len(self.valid_indices) * self.augment_factor
    
     def __getitem__(self, idx):
-        x, y = self.x[idx], self.y[idx]
+        # Map augmented index back to original sample
+        original_idx = self.valid_indices[idx % len(self.valid_indices)]
+        rotation_idx = idx // len(self.valid_indices) if self.train else 0
+        
+        x, y = self.x[original_idx].copy(), self.y[original_idx].copy()
        
-        # Apply augmentation if training (could add spatial augmentations)
+        # Apply augmentations if training
         if self.train:
-            # Could add spatial augmentations here (rotation, flip, etc.)
-            pass
+            # Random cropping
+            if Config.use_random_crop:
+                # Keep trying until we get a valid crop
+                max_attempts = 20
+                for attempt in range(max_attempts):
+                    x_cropped, y_cropped = apply_random_crop_temporal(x, y, Config.crop_size)
+                    if check_valid_sample(y_cropped, Config.crop_size):
+                        x, y = x_cropped, y_cropped
+                        break
+                else:
+                    # If we can't find a valid crop, use center crop
+                    center_offset = (x.shape[1] - Config.crop_size) // 2
+                    x = x[:, center_offset:center_offset+Config.crop_size, 
+                          center_offset:center_offset+Config.crop_size, :]
+                    y = y[center_offset:center_offset+Config.crop_size, 
+                          center_offset:center_offset+Config.crop_size, :]
+            
+            # Rotation augmentation
+            if Config.use_rotation and rotation_idx < len(Config.rotation_angles):
+                angle = Config.rotation_angles[rotation_idx]
+                x, y = apply_rotation_temporal(x, y, angle)
            
         x, y = preprocess_ndws(x, y)
         return x, y
@@ -423,12 +584,15 @@ if __name__ == "__main__":
         # Create data loader
         train_loader = create_dataloader(train_x, train_y, train=True)
        
-        # Build model
+        # Build model - use crop size for model dimensions if cropping is enabled
+        model_height = Config.crop_size if Config.use_random_crop else Config.max_height
+        model_width = Config.crop_size if Config.use_random_crop else Config.max_width
+        
         model = FlameAIModel(
             input_shape=(
                 2,
-                Config.max_height,
-                Config.max_width,
+                model_height,
+                model_width,
                 Config.max_features_per_day # No 9x expansion
             ),
             embed_dim=Config.embed_dim,
@@ -439,6 +603,13 @@ if __name__ == "__main__":
        
         print(f"Model has {sum(p.numel() for p in model.parameters())} parameters")
         print(f"Training on {len(train_loader)} batches")
+        
+        # Print augmentation settings
+        print(f"\n📊 Data Augmentation Settings:")
+        print(f"  Random Crop: {'ON' if Config.use_random_crop else 'OFF'} ({Config.crop_size}x{Config.crop_size})")
+        print(f"  Rotation: {'ON' if Config.use_rotation else 'OFF'} {Config.rotation_angles}")
+        print(f"  Augmentation Factor: {train_loader.dataset.augment_factor}x")
+        print(f"  Effective Dataset Size: {len(train_loader.dataset)} samples")
        
         # Train model
         train_model(model, train_loader, use_custom_loss=True)
@@ -452,15 +623,20 @@ if __name__ == "__main__":
                 'embed_dim': Config.embed_dim,
                 'max_height': Config.max_height,
                 'max_width': Config.max_width,
+                'crop_size': Config.crop_size,
                 'batch_size': Config.batch_size,
                 'epochs': Config.epochs,
                 'temporal_sequence': Config.temporal_sequence,
                 'num_features': Config.max_features_per_day,
                 'fire_weight': Config.fire_weight,
                 'dice_weight': Config.dice_weight,
+                'use_random_crop': Config.use_random_crop,
+                'use_rotation': Config.use_rotation,
+                'rotation_angles': Config.rotation_angles,
             },
             'dataset_info': {
                 'num_samples': len(train_x),
+                'augmented_samples': len(train_loader.dataset),
                 'input_shape': train_x.shape,
                 'target_shape': train_y.shape,
                 'features': ENHANCED_INPUT_FEATURES,

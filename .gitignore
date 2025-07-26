@@ -122,7 +122,6 @@ Thumbs.db
 *.joblib
 *.h5
 *.pt
-*.pth
 
 # Jupyter Notebook
 .ipynb_checkpoints

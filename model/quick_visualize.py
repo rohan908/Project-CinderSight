@@ -18,9 +18,12 @@ def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'
     checkpoint = torch.load(model_path, map_location=device)
     config = checkpoint.get('config', {})
     
-    # Initialize model
+    # Initialize model with correct dimensions
+    model_height = config.get('crop_size', config.get('max_height', 64))
+    model_width = config.get('crop_size', config.get('max_width', 64))
+    
     model = FlameAIModel(
-        input_shape=(2, 64, 64, 15),  # Default values
+        input_shape=(2, model_height, model_width, 15),
         embed_dim=config.get('embed_dim', 128),
         num_heads=8,
         attention_dropout=0.1,
