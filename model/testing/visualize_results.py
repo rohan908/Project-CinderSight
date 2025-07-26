@@ -1,9 +1,14 @@
 import os
+import sys
 import numpy as np
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import glob
+
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 # Import your modules
 from config import (
@@ -67,7 +72,7 @@ class ModelVisualizer:
         print("Model loaded successfully!")
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
         
-    def load_test_data(self, data_dir="data/processed", split="test", num_samples=None):
+    def load_test_data(self, data_dir="../data/processed", split="test", num_samples=None):
         """Load test data for visualization"""
         print("Loading test data...")
         
@@ -366,7 +371,7 @@ Dice Weight: {self.model_config.get('dice_weight', 'N/A')}"""
 
 def main():
     # Find available model files
-    model_dir = "models"
+    model_dir = "../models"
     model_files = glob.glob(os.path.join(model_dir, "*.pth"))
     
     if not model_files:
@@ -399,7 +404,7 @@ def main():
     # 1. Sample predictions
     print("1. Visualizing sample predictions...")
     visualizer.visualize_sample_predictions(data, targets, num_samples=3, 
-                                          save_path="visualizations/sample_predictions.png")
+                                          save_path="../visualizations/sample_predictions.png")
     
     # 2. Input features
     #print("2. Visualizing input features...")
@@ -408,7 +413,7 @@ def main():
     # 3. Feature importance
     print("3. Computing feature importance...")
     importance_results = visualizer.visualize_feature_importance(data, targets, sample_idx=0,
-                                                               save_path="visualizations/feature_importance.png")
+                                                               save_path="../visualizations/feature_importance.png")
     
     # 4. Overall metrics
     print("4. Calculating overall metrics...")
@@ -416,7 +421,7 @@ def main():
     
     # 5. Metrics dashboard
     print("5. Creating metrics dashboard...")
-    visualizer.create_metrics_dashboard(metrics, save_path="visualizations/metrics_dashboard.png")
+    visualizer.create_metrics_dashboard(metrics, save_path="../visualizations/metrics_dashboard.png")
     
     print("\n" + "="*50)
     print("Visualization Complete!")
