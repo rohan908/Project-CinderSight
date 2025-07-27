@@ -120,23 +120,23 @@ class CausalDWConv2D(nn.Module):
         return x
 
 class Conv2DBlock(nn.Module):
-    def __init__(self, in_channels, channel_size, kernel_size, drop_rate=0.2):
+    def __init__(self, in_channels, out_channels, kernel_size, drop_rate=0.2):
         super().__init__()
-        self.fc_expand = nn.Linear(in_channels, channel_size, bias=False)
-        self.dwconv = CausalDWConv2D(channel_size, kernel_size)
-        self.bn = nn.BatchNorm2d(channel_size, momentum=0.05)
-        self.project_conv = nn.Conv2d(channel_size, 1, kernel_size=1, padding=0)
+        self.fc_expand = nn.Linear(in_channels, out_channels, bias=False)
+        self.dwconv = CausalDWConv2D(out_channels, kernel_size)
+        self.bn = nn.BatchNorm2d(out_channels, momentum=0.05)
+        self.project_conv = nn.Conv2d(out_channels, 1, kernel_size=1, padding=0)
         self.eca = ECA(kernel_size=3)
-        self.fc_project = nn.Linear(channel_size, channel_size, bias=False)
+        self.final_fc = nn.Linear(out_channels, out_channels, bias=False)
         self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, inputs, eca=True):
-        # inputs shape: (batch*seq, height, width, in_channels)
+        # inputs shape: (batch, height, width, in_channels)
        
         # Step 1: Expand the feature map
         x = F.silu(self.fc_expand(inputs))  # swish activation
        
-        # Convert to conv format: (batch*seq, channels, height, width)
+        # Convert to conv format: (batch, channels, height, width)
         x = x.permute(0, 3, 1, 2)
        
         # Step 2: Apply depthwise convolution
@@ -152,19 +152,17 @@ class Conv2DBlock(nn.Module):
         if eca:
             x = self.eca(x)
 
-        # Convert back to linear format: (batch*seq, height, width, channels)
+        # Convert back to linear format: (batch, height, width, channels)
         x = x.permute(0, 2, 3, 1)
        
-        # Step 5: Project back to original channel size
-        x = self.fc_project(x)
+        # Step 5: Final fully connected layer with dropout
+        x = self.final_fc(x)
         x = self.dropout(x)
         return x
 
 class CNNModel(nn.Module):
     def __init__(self, input_shape, local_eca=False, embed_dim=128, dropout=0.2):
         super().__init__()
-        self.input_shape = input_shape
-       
         # Local Branch blocks
         self.local_conv_block_1 = Conv2DBlock(input_shape[-1], 32, kernel_size=(3, 3), drop_rate=dropout)
         self.local_conv_block_2 = Conv2DBlock(32, 64, kernel_size=(3, 3), drop_rate=dropout)
@@ -204,16 +202,12 @@ class CNNModel(nn.Module):
         self.local_eca = local_eca
 
     def forward(self, x):
-        # Input shape: (batch, time_steps, height, width, channels)
-        batch_size, seq_len, height, width, channels = x.shape
-        
-        # Reshape for conv processing: (batch*seq, height, width, channels)
-        x = x.view(batch_size * seq_len, height, width, channels)
+        # Input shape: (batch, height, width, channels)
        
         # Local Branch Processing
-        local_branch = self.local_conv_block_1(x)
-        local_branch = self.local_conv_block_2(local_branch)
-        local_branch = self.local_conv_block_3(local_branch)
+        local_branch = self.local_conv_block_1(x, eca=self.local_eca)
+        local_branch = self.local_conv_block_2(local_branch, eca=self.local_eca)
+        local_branch = self.local_conv_block_3(local_branch, eca=self.local_eca)
        
         # Global Branch Processing
         global_branch = self.global_conv_block_1(x)
@@ -268,9 +262,6 @@ class CNNModel(nn.Module):
 
         features = torch.cat([local_branch, global_branch], dim=-1)
         features = self.final_conv_block(features, eca=True)
-       
-        # Reshape back to (batch, seq, height, width, embed_dim)
-        features = features.view(batch_size, seq_len, *features.shape[1:])
        
         return features
 
@@ -348,15 +339,12 @@ class ConvLSTM(nn.Module):
 
 class NextFramePredictor(nn.Module):
     """
-    Next Frame Predictor for NDWS 2-day temporal prediction
+    Next Frame Predictor for NDWS fire spread prediction
     Predicts next-day fire mask from current day features and forecast data
     """
-    def __init__(self, embed_dim=128, num_convlstm=1):
+    def __init__(self, embed_dim=128):
         super().__init__()
-       
-        # Single ConvLSTM layer for 2-day temporal modeling
-        self.conv_lstm = ConvLSTM(embed_dim, embed_dim, kernel_size=(3, 3), return_sequences=False)
-        
+
         # Final prediction layer
         self.prediction_head = nn.Sequential(
             nn.Conv2d(embed_dim, 64, 3, padding=1),
@@ -369,29 +357,25 @@ class NextFramePredictor(nn.Module):
 
     def forward(self, inputs):
         """
-        Predict next-day fire mask from 2-day temporal sequence
+        Predict next-day fire mask from feature representation
         
         Args:
-            inputs: Tensor of shape (batch, 2, height, width, embed_dim)
-                   Day 0: Current conditions + PrevFireMask
-                   Day 1: Forecast conditions (for temporal context)
+            inputs: Tensor of shape (batch, height, width, embed_dim)
         
         Returns:
             fire_prediction: Tensor of shape (batch, height, width, 1)
         """
-        # Convert to ConvLSTM format: (batch, seq, channels, height, width)
-        x = inputs.permute(0, 1, 4, 2, 3)
         
-        # Process through ConvLSTM (2-day sequence -> final state)
-        final_state, _ = self.conv_lstm(x)
-        
+        # Reshape for conv
+        x = inputs.permute(0, 3, 1, 2) # (B, C, H, W)
+
         # Generate fire prediction from final state
-        fire_prediction = self.prediction_head(final_state)
+        x = self.prediction_head(x)
+
+        # Reshape to output shape
+        x = x.permute(0, 2, 3, 1) # (B, H, W, 1)
         
-        # Convert back to (batch, height, width, 1)
-        fire_prediction = fire_prediction.permute(0, 2, 3, 1)
-        
-        return fire_prediction
+        return x
 
 class EncoderLayer(nn.Module):
     def __init__(self, embed_dim, num_heads, attention_dropout, dropout):
@@ -438,93 +422,42 @@ class Transformer(nn.Module):
         return x
 
 class Decoder(nn.Module):
-    def __init__(self, ld_start_step=55*5):
+    def __init__(self, ld_start_step=250):
         super().__init__()
         self.dense = nn.Linear(128, 1, bias=True)
         self.dropout = LateDropout(rate=0.8, start_step=ld_start_step)
         self.layer_norm = nn.LayerNorm(128)
        
     def forward(self, inputs):
-        x = inputs
-        x = self.layer_norm(x)
+        x = self.layer_norm(inputs)
         x = self.dropout(x)
-        x = torch.sigmoid(self.dense(x[:, :, :113]))
+        x = torch.sigmoid(self.dense(x))
         return x
 
 class FlameAIModel(nn.Module):
     """
-    FLAME AI Model for NDWS 2-day wildfire prediction
-    
-    Combines spatial CNN feature extraction with temporal modeling for
-    next-day wildfire spread prediction using current conditions and forecasts
+    FLAME AI Model modified for NDWS wildfire prediction
     """
     def __init__(self, input_shape, embed_dim=128, num_heads=8, attention_dropout=0.1, dropout=0.2):
         super().__init__()
        
         self.cnn = CNNModel(input_shape, local_eca=False, embed_dim=embed_dim, dropout=dropout)
-
-        # Optional: Keep transformer for temporal reasoning
-        self.transformer = Transformer(embed_dim, num_heads, 1, attention_dropout, dropout)
-        self.use_transformer = False
-        
-        self.next_frame_predictor = NextFramePredictor(embed_dim=embed_dim)
+        self.next_frame_predictor = NextFramePredictor()
 
     def forward(self, x):
         """
         Forward pass for NDWS wildfire prediction
         
         Args:
-            x: Input tensor of shape (batch, 2, height, width, channels)
-               Day 0: Current conditions + PrevFireMask  
-               Day 1: Forecast conditions
+            x: Input tensor of shape (batch, height, width, channels)
                
         Returns:
             fire_prediction: Tensor of shape (batch, height, width, 1)
         """
         # Extract spatial features through CNN
-        features = self.cnn(x)  # (batch, 2, height, width, embed_dim)
-        
-        # Optional transformer processing for temporal reasoning
-        if self.use_transformer:
-            features = self.transformer(features)
+        features = self.cnn(x)  # (batch, height, width, embed_dim)
         
         # Predict next-day fire mask
         fire_prediction = self.next_frame_predictor(features)
         
         return fire_prediction
-
-# Custom Loss Function for NDWS
-class CustomWBCEDiceLoss(nn.Module):
-    """
-    Custom loss combining Weighted Binary Cross Entropy and Dice Loss
-    for NDWS wildfire prediction with class imbalance handling
-    """
-    def __init__(self, w_fire=10.0, w_no_fire=1.0, dice_weight=2.0):
-        super().__init__()
-        self.w_fire = w_fire
-        self.w_no_fire = w_no_fire
-        self.dice_weight = dice_weight
-        
-    def forward(self, y_pred, y_true):
-        # Handle invalid labels (-1) by creating a mask
-        valid_mask = (y_true != -1.0)
-        
-        if not valid_mask.any():
-            return torch.tensor(0.0, device=y_pred.device, requires_grad=True)
-            
-        # Filter out invalid pixels
-        y_pred_valid = y_pred[valid_mask]
-        y_true_valid = y_true[valid_mask]
-        
-        # Weighted Binary Cross Entropy Loss
-        weights = torch.where(y_true_valid == 1.0, self.w_fire, self.w_no_fire)
-        wbce = F.binary_cross_entropy(y_pred_valid, y_true_valid, weight=weights)
-        
-        # Dice Loss
-        intersection = (y_pred_valid * y_true_valid).sum()
-        dice_loss = 1 - (2 * intersection + 1e-6) / (y_pred_valid.sum() + y_true_valid.sum() + 1e-6)
-        
-        # Combined loss
-        total_loss = wbce + self.dice_weight * dice_loss
-        
-        return total_loss 

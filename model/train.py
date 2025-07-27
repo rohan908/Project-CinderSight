@@ -6,21 +6,17 @@ import torch.optim as optim
 import random
 import traceback
 import pickle
-from torch.utils.data import DataLoader
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
 
-from augmentation import FlameDataset
+from augmentation import create_random_crop_params, apply_random_crop, apply_rotation, check_valid_sample, add_surrounding_position
 
+from models import FlameAIModel
 from config import (
     ENHANCED_INPUT_FEATURES,
     NUM_ENHANCED_INPUT_FEATURES,
     DEFAULT_DATA_SIZE
 )
-
-from models import (
-    FlameAIModel,
-    CustomWBCEDiceLoss
-)
-
 # from interpretability import (
 #     GradCAM,
 #     IntegratedGradients,
@@ -154,6 +150,123 @@ def calculate_segmentation_metrics(y_pred, y_true, threshold=0.5):
         'fn': fn,
         'tn': tn
     }
+
+class FlameDataset(Dataset):
+    """Dataset class for NDWS wildfire prediction with augmentation"""
+    def __init__(self, x, y, train=True, augment_factor=4):
+        self.x = x  # Input features (N, H, W, features)
+        self.y = y  # Target fire masks (N, H, W, 1)
+        self.train = train
+        self.augment_factor = augment_factor if train else 1
+        
+        # Pre-compute valid samples after potential cropping
+        if train and Config.use_random_crop:
+            self.valid_indices = self._find_valid_samples()
+            print(f"Found {len(self.valid_indices)} valid samples for training after cropping filter")
+        else:
+            self.valid_indices = list(range(len(self.x)))
+       
+    def _find_valid_samples(self):
+        """Find samples that have enough valid data after cropping"""
+        valid_indices = []
+        
+        for i in range(len(self.x)):
+            target = self.y[i]
+            
+            # Check multiple random crops to see if this sample can produce valid crops
+            valid_crops = 0
+            for _ in range(10):  # Check 10 random crop positions
+                x_offset, y_offset = create_random_crop_params(target.shape[0], Config.crop_size)
+
+                cropped_target = target[x_offset:x_offset+Config.crop_size, 
+                                        y_offset:y_offset+Config.crop_size,
+                                        :]
+                
+                if check_valid_sample(cropped_target, Config.crop_size):
+                    valid_crops += 1
+                    
+            if valid_crops >= 3:  # At least 3 out of 10 crops should be valid
+                valid_indices.append(i)
+                
+        return valid_indices
+       
+    def __len__(self):
+        return len(self.valid_indices) * self.augment_factor
+   
+    def __getitem__(self, idx):
+        # Map augmented index back to original sample
+        original_idx = self.valid_indices[idx % len(self.valid_indices)]
+        rotation_idx = idx // len(self.valid_indices) if self.train else 0
+        
+        x, y = self.x[original_idx].copy(), self.y[original_idx].copy()
+       
+        # Apply augmentations if training
+        if self.train:
+            # Random cropping
+            if Config.use_random_crop:
+                # Keep trying until we get a valid crop
+                max_attempts = 20
+                for attempt in range(max_attempts):
+                    x_cropped, y_cropped = apply_random_crop(x, y, Config.crop_size)
+                    if check_valid_sample(y_cropped, Config.crop_size):
+                        x, y = x_cropped, y_cropped
+                        break
+                else:
+                    # If we can't find a valid crop, use center crop
+                    center_offset = (x.shape[1] - Config.crop_size) // 2
+                    x = x[center_offset:center_offset+Config.crop_size, 
+                          center_offset:center_offset+Config.crop_size, :]
+                    y = y[center_offset:center_offset+Config.crop_size, 
+                          center_offset:center_offset+Config.crop_size, :]
+            
+            # Rotation augmentation
+            if Config.use_rotation and rotation_idx < len(Config.rotation_angles):
+                angle = Config.rotation_angles[rotation_idx]
+                x, y = apply_rotation(x, y, angle)
+        
+        # Convert to tensors before adding the surrounding position
+        x = torch.Tensor(x)
+        y = torch.Tensor(y)
+
+        x = add_surrounding_position(x)
+
+        # Move the tensors to the correct device
+        return x.to(device), y.to(device)
+
+class CustomWBCEDiceLoss(nn.Module):
+    """
+    Custom loss combining Weighted Binary Cross Entropy and Dice Loss
+    for NDWS wildfire prediction with class imbalance handling
+    """
+    def __init__(self, w_fire=10.0, w_no_fire=1.0, dice_weight=2.0):
+        super().__init__()
+        self.w_fire = w_fire
+        self.w_no_fire = w_no_fire
+        self.dice_weight = dice_weight
+        
+    def forward(self, y_pred, y_true):
+        # Handle invalid labels (-1) by creating a mask
+        valid_mask = (y_true != -1.0)
+        
+        if not valid_mask.any():
+            return torch.tensor(0.0, device=y_pred.device, requires_grad=True)
+            
+        # Filter out invalid pixels
+        y_pred_valid = y_pred[valid_mask]
+        y_true_valid = y_true[valid_mask]
+        
+        # Weighted Binary Cross Entropy Loss
+        weights = torch.where(y_true_valid == 1.0, self.w_fire, self.w_no_fire)
+        wbce = F.binary_cross_entropy(y_pred_valid, y_true_valid, weight=weights)
+        
+        # Dice Loss
+        intersection = (y_pred_valid * y_true_valid).sum()
+        dice_loss = 1 - (2 * intersection + 1e-6) / (y_pred_valid.sum() + y_true_valid.sum() + 1e-6)
+        
+        # Combined loss
+        total_loss = wbce + self.dice_weight * dice_loss
+        
+        return total_loss 
 
 def train_model(model, train_loader, use_custom_loss=True):
     """Training function with custom loss and metrics for NDWS"""

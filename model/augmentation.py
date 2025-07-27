@@ -3,9 +3,6 @@ import torch
 import numpy as np
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
-from torch.utils.data import Dataset
-
-from train import Config, device
 
 def create_random_crop_params(original_size, crop_size):
     """Create random crop parameters"""
@@ -102,113 +99,36 @@ def check_valid_sample(target, crop_size, min_valid_ratio=0.8):
 
 def add_surrounding_position(features):
     """
-    Add surrounding position encoding for spatial context
-    
     Args:
-        features: Shape (B, H, W, features)
-    
+        features: torch.Tensor of shape (H, W, C)
+
     Returns:
-        expanded: Shape (B, H, W, expanded_features)
+        torch.Tensor of shape (H, W, C*9)
     """
-    # Padding the array: pad along the height and width dimensions only
-    padded_array = F.pad(features, (0, 0, 1, 1, 1, 1, 0, 0, 0, 0), mode='constant')
-
-    # Extract surrounding pixels
-    center = features
-    up = padded_array[:, :-2, 1:-1, :]
-    down = padded_array[:, 2:, 1:-1, :]
-    left = padded_array[:, 1:-1, :-2, :]
-    right = padded_array[:, 1:-1, 2:, :]
-    up_left = padded_array[:, :-2, :-2, :]
-    up_right = padded_array[:, :-2, 2:, :]
-    down_left = padded_array[:, 2:, :-2, :]
-    down_right = padded_array[:, 2:, 2:, :]
+    # 1) move channels to dim=0
+    x = features.permute(2, 0, 1)          # now shape = (C, H, W)
+    # 2) pad H and W by 1 on both sides: pad = (pad_w_left, pad_w_right, pad_h_top, pad_h_bottom)
+    p = F.pad(x, (1, 1, 1, 1), mode='constant', value=0)  # shape = (C, H+2, W+2)
     
-    # Concatenate along channel dimension  
-    expanded = torch.cat([
-        center, up, down, left, right, up_left, up_right, down_left, down_right
-    ], dim=-1)  # Shape: (B, H, W, channels * 9)
-    
-    return expanded
+    C, Hp, Wp = p.shape
+    H, W = Hp - 2, Wp - 2
 
-class FlameDataset(Dataset):
-    """Dataset class for NDWS wildfire prediction with augmentation"""
-    def __init__(self, x, y, train=True, augment_factor=4):
-        self.x = x  # Input features (N, H, W, features)
-        self.y = y  # Target fire masks (N, H, W, 1)
-        self.train = train
-        self.augment_factor = augment_factor if train else 1
-        
-        # Pre-compute valid samples after potential cropping
-        if train and Config.use_random_crop:
-            self.valid_indices = self._find_valid_samples()
-            print(f"Found {len(self.valid_indices)} valid samples for training after cropping filter")
-        else:
-            self.valid_indices = list(range(len(self.x)))
-       
-    def _find_valid_samples(self):
-        """Find samples that have enough valid data after cropping"""
-        valid_indices = []
-        
-        for i in range(len(self.x)):
-            target = self.y[i]
-            
-            # Check multiple random crops to see if this sample can produce valid crops
-            valid_crops = 0
-            for _ in range(10):  # Check 10 random crop positions
-                x_offset, y_offset = create_random_crop_params(target.shape[0], Config.crop_size)
+    # 3) extract each neighbor
+    center   = p[:, 1:1+H,   1:1+W   ]
+    up       = p[:, 0:  H,   1:1+W   ]
+    down     = p[:, 2:2+H,   1:1+W   ]
+    left     = p[:, 1:1+H,   0:  W   ]
+    right    = p[:, 1:1+H,   2:2+W   ]
+    up_left  = p[:, 0:  H,   0:  W   ]
+    up_right = p[:, 0:  H,   2:2+W   ]
+    dn_left  = p[:, 2:2+H,   0:  W   ]
+    dn_right = p[:, 2:2+H,   2:2+W   ]
 
-                cropped_target = target[x_offset:x_offset+Config.crop_size, 
-                                        y_offset:y_offset+Config.crop_size,
-                                        :]
-                
-                if check_valid_sample(cropped_target, Config.crop_size):
-                    valid_crops += 1
-                    
-            if valid_crops >= 3:  # At least 3 out of 10 crops should be valid
-                valid_indices.append(i)
-                
-        return valid_indices
-       
-    def __len__(self):
-        return len(self.valid_indices) * self.augment_factor
-   
-    def __getitem__(self, idx):
-        # Map augmented index back to original sample
-        original_idx = self.valid_indices[idx % len(self.valid_indices)]
-        rotation_idx = idx // len(self.valid_indices) if self.train else 0
-        
-        x, y = self.x[original_idx].copy(), self.y[original_idx].copy()
-       
-        # Apply augmentations if training
-        if self.train:
-            # Random cropping
-            if Config.use_random_crop:
-                # Keep trying until we get a valid crop
-                max_attempts = 20
-                for attempt in range(max_attempts):
-                    x_cropped, y_cropped = apply_random_crop(x, y, Config.crop_size)
-                    if check_valid_sample(y_cropped, Config.crop_size):
-                        x, y = x_cropped, y_cropped
-                        break
-                else:
-                    # If we can't find a valid crop, use center crop
-                    center_offset = (x.shape[1] - Config.crop_size) // 2
-                    x = x[center_offset:center_offset+Config.crop_size, 
-                          center_offset:center_offset+Config.crop_size, :]
-                    y = y[center_offset:center_offset+Config.crop_size, 
-                          center_offset:center_offset+Config.crop_size, :]
-            
-            # Rotation augmentation
-            if Config.use_rotation and rotation_idx < len(Config.rotation_angles):
-                angle = Config.rotation_angles[rotation_idx]
-                x, y = apply_rotation(x, y, angle)
-        
-        # Convert to tensors before adding the surrounding position
-        x = torch.Tensor(x)
-        y = torch.Tensor(y)
+    # 4) concatenate on channel dim
+    out = torch.cat([
+       center, up, down, left, right,
+       up_left, up_right, dn_left, dn_right
+    ], dim=0)  # shape = (C*9, H, W)
 
-        x = add_surrounding_position(x)
-
-        # Move the tensors to the correct device
-        return x.to(device), y.to(device)
+    # 5) move channels back to last dim
+    return out.permute(1, 2, 0)              # (H, W, C*9)
