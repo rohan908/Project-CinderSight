@@ -145,10 +145,10 @@ def calculate_segmentation_metrics(y_pred, y_true, threshold=0.5):
         'recall': recall, 
         'f1': f1,
         'iou': iou,
-        'tp': tp,
-        'fp': fp,
-        'fn': fn,
-        'tn': tn
+        'tp': tp, # True Positives
+        'fp': fp, # False Positives
+        'fn': fn, # False Negatives
+        'tn': tn # True Negatives
     }
 
 class FlameDataset(Dataset):
