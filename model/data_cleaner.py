@@ -4,22 +4,16 @@ from typing import Dict, List, Optional, Text, Tuple
 import pickle
 import numpy as np
 import torch
-import torch.nn.functional as F
-import os
 from pathlib import Path
 import tfrecord
 
 # Import shared configuration
 from config import (
     ENHANCED_INPUT_FEATURES,
+    NUM_ENHANCED_INPUT_FEATURES,
     OUTPUT_FEATURES,
     ENHANCED_DATA_STATS,
-    DEFAULT_DATA_SIZE,
-    DEFAULT_SAMPLE_SIZE,
-    NUM_ENHANCED_INPUT_CHANNELS,
-    NUM_OUTPUT_CHANNELS,
-    INVALID_DATA_VALUE,
-    EPSILON
+    DEFAULT_DATA_SIZE
 )
 
 """Enhanced NDWS Dataset Cleaner and Preprocessor
@@ -426,8 +420,8 @@ def main(data_dir: str = "data/raw", output_dir: str = "data/processed"):
         
         # Dataset parameters
         data_size = DEFAULT_DATA_SIZE  # Original data resolution
-        sample_size = DEFAULT_DATA_SIZE  # Full resolution (as requested)
-        num_in_channels = len(ENHANCED_INPUT_FEATURES)  # 19 features
+        sample_size = DEFAULT_DATA_SIZE  # Use full resolution
+        num_in_channels = NUM_ENHANCED_INPUT_FEATURES  # 19 features
         
         print(f"\nProcessing parameters:")
         print(f"Data size: {data_size}x{data_size}")

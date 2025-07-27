@@ -2,18 +2,9 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import matplotlib.pyplot as plt
+from captum.attr import GradientShap
 
 from config import ENHANCED_INPUT_FEATURES
-
-# Interpretability Methods for NDWS
-import shap
-try:
-    import captum
-    from captum.attr import IntegratedGradients, GradientShap
-    CAPTUM_AVAILABLE = True
-except ImportError:
-    print("Warning: Captum not available. Install with: pip install captum")
-    CAPTUM_AVAILABLE = False
 
 class GradCAM:
     """Grad-CAM implementation for NDWS wildfire prediction"""
@@ -127,8 +118,8 @@ class IntegratedGradients:
         """Calculate feature importance scores for NDWS features"""
         ig_attributions = self.integrated_gradients(input_tensor)
         
-        # Sum attributions across spatial dimensions for each feature
-        feature_scores = torch.mean(ig_attributions, dim=(0, 2, 3))  # Average over batch and spatial dims
+        # Sum attributions across batch and spatial dimensions for each feature
+        feature_scores = torch.mean(ig_attributions, dim=(0, 1, 2))  # Average over batch, time, and spatial dims
         
         # Calculate positive contribution ratio (PCR) for each feature
         positive_scores = torch.clamp(feature_scores, min=0)
@@ -145,7 +136,7 @@ class IntegratedGradients:
             'feature_names': ENHANCED_INPUT_FEATURES[:len(feature_scores)]
         }
 
-def analyze_model_interpretability(model, test_data, feature_names=None):
+def analyze_model_interpretability(model, test_data):
     """Comprehensive interpretability analysis for NDWS model"""
     print("Starting interpretability analysis...")
     
@@ -173,36 +164,31 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
     for i, sample in enumerate(test_data[:10]):  # Analyze first 10 samples
         importance = ig_analyzer.feature_importance_scores(sample.unsqueeze(0))
         feature_importance_list.append(importance)
-        if i >= 9:  # Limit to 10 samples
-            break
             
     results['integrated_gradients'] = feature_importance_list
     
-    # 3. SHAP Analysis (if available)
-    if CAPTUM_AVAILABLE:
-        print("Computing SHAP values...")
-        try:
-            # Use GradientShap from Captum
-            gradient_shap = GradientShap(model)
+    # 3. SHAP Analysis
+    print("Computing SHAP values...")
+    try:
+        # Use GradientShap from Captum
+        gradient_shap = GradientShap(model)
+        
+        # Select a subset for baseline
+        baselines = test_data[:5]
+        
+        shap_values_list = []
+        for i, sample in enumerate(baselines):
+            shap_vals = gradient_shap.attribute(
+                sample.unsqueeze(0), 
+                baselines=baselines,
+                n_samples=50
+            )
+            shap_values_list.append(shap_vals.cpu().numpy())
             
-            # Select a subset for baseline
-            baselines = test_data[:5]
-            
-            shap_values_list = []
-            for i, sample in enumerate(test_data[:5]):
-                shap_vals = gradient_shap.attribute(
-                    sample.unsqueeze(0), 
-                    baselines=baselines,
-                    n_samples=50
-                )
-                shap_values_list.append(shap_vals.cpu().numpy())
-                
-            results['shap'] = shap_values_list
-            
-        except Exception as e:
-            print(f"SHAP analysis failed: {str(e)}")
-            results['shap'] = None
-    else:
+        results['shap'] = shap_values_list
+        
+    except Exception as e:
+        print(f"SHAP analysis failed: {str(e)}")
         results['shap'] = None
     
     print("Interpretability analysis complete!")
@@ -210,8 +196,6 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
 
 def visualize_interpretability_results(results, save_path="interpretability_results.png"):
     """Visualize interpretability analysis results"""
-    import matplotlib.pyplot as plt
-    
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     
     # Grad-CAM visualization
@@ -241,39 +225,3 @@ def visualize_interpretability_results(results, save_path="interpretability_resu
     plt.show()
     
     return fig
-
-# NDWS Evaluation Metrics
-def calculate_segmentation_metrics(y_pred, y_true, threshold=0.5):
-    """
-    Calculate segmentation metrics for NDWS wildfire prediction
-    """
-    # Handle invalid labels
-    valid_mask = (y_true != -1.0)
-    
-    if not valid_mask.any():
-        return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'iou': 0.0}
-    
-    y_pred_valid = (y_pred[valid_mask] > threshold).float()
-    y_true_valid = y_true[valid_mask]
-    
-    # Calculate metrics
-    tp = (y_pred_valid * y_true_valid).sum().item()
-    fp = (y_pred_valid * (1 - y_true_valid)).sum().item()
-    fn = ((1 - y_pred_valid) * y_true_valid).sum().item()
-    tn = ((1 - y_pred_valid) * (1 - y_true_valid)).sum().item()
-    
-    precision = tp / (tp + fp + 1e-6)
-    recall = tp / (tp + fn + 1e-6)
-    f1 = 2 * precision * recall / (precision + recall + 1e-6)
-    iou = tp / (tp + fp + fn + 1e-6)
-    
-    return {
-        'precision': precision,
-        'recall': recall, 
-        'f1': f1,
-        'iou': iou,
-        'tp': tp,
-        'fp': fp,
-        'fn': fn,
-        'tn': tn
-    } 
