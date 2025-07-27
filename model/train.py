@@ -429,7 +429,8 @@ if __name__ == "__main__":
     train_model(model, train_loader, use_custom_loss=True)
     
     # Save model
-    model_save_path = f'models/model.pth'
+    num_models = len([f for f in os.listdir('models') if f.endswith('.pth')])
+    model_save_path = f'models/model_{num_models}.pth'
     torch.save({
         'model_state_dict': model.state_dict(),
         'config': {
