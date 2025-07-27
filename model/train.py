@@ -4,17 +4,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
 import random
 import traceback
 import torchvision.transforms.functional as TF
+from torch.utils.data import Dataset, DataLoader
 
 # Import NDWS configuration
 from config import (
-    ENHANCED_INPUT_FEATURES, 
-    OUTPUT_FEATURES, 
-    ENHANCED_DATA_STATS,
-    NUM_ENHANCED_INPUT_CHANNELS,
+    ENHANCED_INPUT_FEATURES,
     DEFAULT_DATA_SIZE,
     WEATHER_CURRENT_FEATURES,
     WEATHER_FORECAST_FEATURES,
@@ -24,18 +21,17 @@ from config import (
     FIRE_FEATURES
 )
 
-# Import models and interpretability functions
 from models import (
     FlameAIModel,
     CustomWBCEDiceLoss,
     positional_encoding
 )
+
 from interpretability import (
     GradCAM,
     IntegratedGradients,
     analyze_model_interpretability,
-    visualize_interpretability_results,
-    calculate_segmentation_metrics
+    visualize_interpretability_results
 )
 
 def seed_everything(seed=0):
@@ -262,7 +258,7 @@ def create_temporal_sequence(features, targets):
     fire_idx = [ENHANCED_INPUT_FEATURES.index(f) for f in FIRE_FEATURES]
     
     # Create temporal sequences
-    temporal_data = np.zeros((N, 2, H, W, Config.max_features_per_day))
+    temporal_data = np.zeros((N, 2, H, W, Config.max_features_per_day)) 
     
     # Day 0 (current day): All available features except forecasts
     day0_features = (current_weather_idx + terrain_idx + vegetation_idx + 
@@ -453,8 +449,46 @@ def create_dataloader(x, y, train=True):
         num_workers=0,  # Set to 0 for debugging, increase for performance
     )
 
+def calculate_segmentation_metrics(y_pred, y_true, threshold=0.5):
+    """
+    Calculate segmentation metrics for NDWS wildfire prediction
+    """
+    # Handle invalid labels
+    valid_mask = (y_true != -1.0)
+    
+    if not valid_mask.any():
+        return {'precision': 0.0, 'recall': 0.0, 'f1': 0.0, 'iou': 0.0}
+    
+    y_pred_valid = (y_pred[valid_mask] > threshold).float()
+    y_true_valid = y_true[valid_mask]
+    
+    # Calculate metrics
+    tp = (y_pred_valid * y_true_valid).sum().item()
+    fp = (y_pred_valid * (1 - y_true_valid)).sum().item()
+    fn = ((1 - y_pred_valid) * y_true_valid).sum().item()
+    tn = ((1 - y_pred_valid) * (1 - y_true_valid)).sum().item()
+    
+    precision = tp / (tp + fp + 1e-6)
+    recall = tp / (tp + fn + 1e-6)
+    f1 = 2 * precision * recall / (precision + recall + 1e-6)
+    iou = tp / (tp + fp + fn + 1e-6)
+
+    # print(f'TP: {tp}, FP: {fp}, FN: {fn}, TN: {tn}, precision: {precision}, recall: {recall}')
+    
+    return {
+        'precision': precision,
+        'recall': recall, 
+        'f1': f1,
+        'iou': iou,
+        'tp': tp,
+        'fp': fp,
+        'fn': fn,
+        'tn': tn
+    }
+
 def train_model(model, train_loader, use_custom_loss=True):
     """Training function with custom loss and metrics for NDWS"""
+    # Enable gradients
     model.train()
     
     # Use Adam optimizer as specified in NDWS paper

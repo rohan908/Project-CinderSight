@@ -4,11 +4,9 @@ import torch
 import matplotlib.pyplot as plt
 import glob
 
-# Import your modules
-from config import ENHANCED_INPUT_FEATURES, WEATHER_CURRENT_FEATURES, FIRE_FEATURES
+from config import ENHANCED_INPUT_FEATURES
 from models import FlameAIModel
-from train import load_ndws_data, create_temporal_sequence
-from interpretability import calculate_segmentation_metrics
+from train import load_ndws_data, create_temporal_sequence, calculate_segmentation_metrics
 
 def load_model(model_path, device='cuda' if torch.cuda.is_available() else 'cpu'):
     """Load a trained model"""
