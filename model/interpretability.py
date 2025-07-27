@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import numpy as np
+import matplotlib.pyplot as plt
 from captum.attr import GradientShap
 
 from config import ENHANCED_INPUT_FEATURES
@@ -117,8 +118,8 @@ class IntegratedGradients:
         """Calculate feature importance scores for NDWS features"""
         ig_attributions = self.integrated_gradients(input_tensor)
         
-        # Sum attributions across batch, temporal, and spatial dimensions for each feature
-        feature_scores = torch.mean(ig_attributions, dim=(0, 1, 2, 3))  # Average over batch, time, and spatial dims
+        # Sum attributions across batch and spatial dimensions for each feature
+        feature_scores = torch.mean(ig_attributions, dim=(0, 1, 2))  # Average over batch, time, and spatial dims
         
         # Calculate positive contribution ratio (PCR) for each feature
         positive_scores = torch.clamp(feature_scores, min=0)
@@ -135,7 +136,7 @@ class IntegratedGradients:
             'feature_names': ENHANCED_INPUT_FEATURES[:len(feature_scores)]
         }
 
-def analyze_model_interpretability(model, test_data, feature_names=None):
+def analyze_model_interpretability(model, test_data):
     """Comprehensive interpretability analysis for NDWS model"""
     print("Starting interpretability analysis...")
     
@@ -163,8 +164,6 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
     for i, sample in enumerate(test_data[:10]):  # Analyze first 10 samples
         importance = ig_analyzer.feature_importance_scores(sample.unsqueeze(0))
         feature_importance_list.append(importance)
-        if i >= 9:  # Limit to 10 samples
-            break
             
     results['integrated_gradients'] = feature_importance_list
     
@@ -178,7 +177,7 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
         baselines = test_data[:5]
         
         shap_values_list = []
-        for i, sample in enumerate(test_data[:5]):
+        for i, sample in enumerate(baselines):
             shap_vals = gradient_shap.attribute(
                 sample.unsqueeze(0), 
                 baselines=baselines,
@@ -197,8 +196,6 @@ def analyze_model_interpretability(model, test_data, feature_names=None):
 
 def visualize_interpretability_results(results, save_path="interpretability_results.png"):
     """Visualize interpretability analysis results"""
-    import matplotlib.pyplot as plt
-    
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
     
     # Grad-CAM visualization
