@@ -132,7 +132,6 @@ class Conv2DBlock(nn.Module):
 
     def forward(self, inputs, eca=True):
         # inputs shape: (batch*seq, height, width, in_channels)
-        batch_seq, height, width, in_channels = inputs.shape
        
         # Step 1: Expand the feature map
         x = F.silu(self.fc_expand(inputs))  # swish activation

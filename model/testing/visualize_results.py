@@ -2,46 +2,26 @@ import os
 import sys
 import numpy as np
 import torch
-import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import glob
 
-
+# Allow modules to be imported from /model
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import ENHANCED_INPUT_FEATURES
 
-# Import your modules
-from config import (
-    ENHANCED_INPUT_FEATURES, 
-    OUTPUT_FEATURES, 
-    ENHANCED_DATA_STATS,
-    NUM_ENHANCED_INPUT_CHANNELS,
-    DEFAULT_DATA_SIZE,
-    WEATHER_CURRENT_FEATURES,
-    WEATHER_FORECAST_FEATURES,
-    TERRAIN_FEATURES,
-    VEGETATION_FEATURES,
-    HUMAN_FEATURES,
-    FIRE_FEATURES
-)
-
-from models import FlameAIModel, CustomWBCEDiceLoss
+from models import FlameAIModel
+from train import load_ndws_data, calculate_segmentation_metrics
 from interpretability import (
     GradCAM,
     IntegratedGradients,
-    analyze_model_interpretability,
-    calculate_segmentation_metrics
+    analyze_model_interpretability
 )
-
-# Import data loading functions from train.py
-from train import load_ndws_data, create_temporal_sequence, FlameDataset, create_dataloader
 
 class ModelVisualizer:
     def __init__(self, model_path, device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = torch.device(device)
         self.model_path = model_path
-        self.model = None
-        self.model_config = None
         self.load_model()
         
     def load_model(self):
@@ -54,10 +34,9 @@ class ModelVisualizer:
         # Initialize model with saved config
         self.model = FlameAIModel(
             input_shape=(
-                2,  # temporal sequence
                 self.model_config.get('max_height', 64),
                 self.model_config.get('max_width', 64), 
-                self.model_config.get('num_features', 15)
+                self.model_config.get('num_features', 19)
             ),
             embed_dim=self.model_config.get('embed_dim', 128),
             num_heads=8,
@@ -85,24 +64,21 @@ class ModelVisualizer:
         
         if features is None or targets is None:
             raise ValueError("Could not load data for visualization")
-            
-        # Create temporal sequences
-        temporal_data, temporal_targets = create_temporal_sequence(features, targets)
         
         # Limit samples if specified
         if num_samples:
-            indices = np.random.choice(len(temporal_data), min(num_samples, len(temporal_data)), replace=False)
-            temporal_data = temporal_data[indices]
-            temporal_targets = temporal_targets[indices]
+            indices = np.random.choice(len(features), min(num_samples, len(features)), replace=False)
+            features = features[indices]
+            targets = targets[indices]
             
-        print(f"Loaded {len(temporal_data)} samples for visualization")
-        return temporal_data, temporal_targets
+        print(f"Loaded {len(features)} samples for visualization")
+        return features, targets
     
     def predict_batch(self, data_batch):
         """Run inference on a batch of data"""
         with torch.no_grad():
             if not isinstance(data_batch, torch.Tensor):
-                data_batch = torch.FloatTensor(data_batch)
+                data_batch = torch.Tensor(data_batch)
             data_batch = data_batch.to(self.device)
             predictions = self.model(data_batch)
             return predictions.cpu().numpy()
@@ -113,6 +89,8 @@ class ModelVisualizer:
             sample_indices = np.random.choice(len(data), min(num_samples, len(data)), replace=False)
         
         fig, axes = plt.subplots(len(sample_indices), 4, figsize=(16, 4*len(sample_indices)))
+
+        # Make sure axes has the correct dimensions
         if len(sample_indices) == 1:
             axes = axes.reshape(1, -1)
             
@@ -124,7 +102,7 @@ class ModelVisualizer:
             prediction = self.predict_batch(sample_data)[0]  # Remove batch dimension
             
             # Previous fire mask (from input)
-            prev_fire = sample_data[0, 0, :, :, -1]  # Last channel of day 0
+            prev_fire = sample_data[:, :, -1]
             
             # Ground truth
             ground_truth = sample_target[:, :, 0]
@@ -172,12 +150,11 @@ class ModelVisualizer:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
         plt.show()
     
-    def visualize_feature_importance(self, data, targets, sample_idx=0, save_path=None):
+    def visualize_feature_importance(self, data, sample_idx=0, save_path=None):
         """Visualize feature importance using Integrated Gradients"""
         print("Computing feature importance...")
         
         sample_data = data[sample_idx:sample_idx+1]
-        sample_target = targets[sample_idx:sample_idx+1]
         
         # Initialize Integrated Gradients
         ig_analyzer = IntegratedGradients(self.model)
@@ -224,20 +201,12 @@ class ModelVisualizer:
         
         return importance_results
     
-    def visualize_input_features(self, data, sample_idx=0, day=0, save_path=None):
+    def visualize_input_features(self, data, sample_idx=0, save_path=None):
         """Visualize all input features for a sample"""
         sample = data[sample_idx]
-        day_data = sample[day]  # Shape: (H, W, features)
         
-        if day == 0:
-            feature_names = WEATHER_CURRENT_FEATURES + TERRAIN_FEATURES + VEGETATION_FEATURES + HUMAN_FEATURES + FIRE_FEATURES
-        else:
-            feature_names = WEATHER_FORECAST_FEATURES + TERRAIN_FEATURES + VEGETATION_FEATURES + HUMAN_FEATURES
-            
-        # Limit to actual number of features
-        num_features = min(len(feature_names), day_data.shape[-1])
-        feature_names = feature_names[:num_features]
-        
+        num_features = len(ENHANCED_INPUT_FEATURES)
+
         # Create subplot grid
         cols = 4
         rows = (num_features + cols - 1) // cols
@@ -246,10 +215,10 @@ class ModelVisualizer:
         axes = axes.flatten() if rows > 1 else [axes] if rows == 1 else []
         
         for i in range(num_features):
-            feature_data = day_data[:, :, i]
+            feature_data = sample[:, :, i]
             
             im = axes[i].imshow(feature_data, cmap='viridis')
-            axes[i].set_title(f'{feature_names[i]}', fontsize=10)
+            axes[i].set_title(f'{ENHANCED_INPUT_FEATURES[i]}', fontsize=10)
             axes[i].axis('off')
             plt.colorbar(im, ax=axes[i], fraction=0.046, pad=0.04)
         
@@ -257,7 +226,7 @@ class ModelVisualizer:
         for i in range(num_features, len(axes)):
             axes[i].axis('off')
         
-        plt.suptitle(f'Input Features - Sample {sample_idx}, Day {day}', fontsize=14)
+        plt.suptitle(f'Input Features - Sample {sample_idx}', fontsize=14)
         plt.tight_layout()
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -382,8 +351,7 @@ def main():
     for i, model_file in enumerate(model_files):
         print(f"{i}: {os.path.basename(model_file)}")
     
-    # Use the first model or let user choose
-    model_path = model_files[1]  # Change this to select different models
+    model_path = model_files[0]  # Change this to select different models
     print(f"\nUsing model: {os.path.basename(model_path)}")
     
     # Initialize visualizer
@@ -407,12 +375,12 @@ def main():
                                           save_path="../visualizations/sample_predictions.png")
     
     # 2. Input features
-    #print("2. Visualizing input features...")
-    #visualizer.visualize_input_features(data, sample_idx=0, day=0, save_path="visualizations/input_features_day0.png")
+    print("2. Visualizing input features...")
+    visualizer.visualize_input_features(data, sample_idx=0, save_path="visualizations/input_features.png")
     
     # 3. Feature importance
     print("3. Computing feature importance...")
-    importance_results = visualizer.visualize_feature_importance(data, targets, sample_idx=0,
+    importance_results = visualizer.visualize_feature_importance(data, sample_idx=0,
                                                                save_path="../visualizations/feature_importance.png")
     
     # 4. Overall metrics
