@@ -3,20 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-from config import (
-    ENHANCED_INPUT_FEATURES, 
-    OUTPUT_FEATURES, 
-    ENHANCED_DATA_STATS,
-    NUM_ENHANCED_INPUT_CHANNELS,
-    DEFAULT_DATA_SIZE,
-    WEATHER_CURRENT_FEATURES,
-    WEATHER_FORECAST_FEATURES,
-    TERRAIN_FEATURES,
-    VEGETATION_FEATURES,
-    HUMAN_FEATURES,
-    FIRE_FEATURES
-)
-
 def positional_encoding(length, depth):
     depth = depth/2
 
@@ -134,15 +120,15 @@ class CausalDWConv2D(nn.Module):
         return x
 
 class Conv2DBlock(nn.Module):
-    def __init__(self, in_channels, channel_size, kernel_size, drop_rate=0.2, expand_ratio=1):
+    def __init__(self, in_channels, channel_size, kernel_size, drop_rate=0.2):
         super().__init__()
-        self.fc_expand = nn.Linear(in_channels, channel_size * expand_ratio, bias=False)
-        self.bn = nn.BatchNorm2d(channel_size * expand_ratio, momentum=0.05)
-        self.fc_project = nn.Linear(channel_size * expand_ratio, channel_size, bias=False)
-        self.dwconv = CausalDWConv2D(channel_size * expand_ratio, kernel_size)
-        self.dropout = nn.Dropout(drop_rate)
+        self.fc_expand = nn.Linear(in_channels, channel_size, bias=False)
+        self.dwconv = CausalDWConv2D(channel_size, kernel_size)
+        self.bn = nn.BatchNorm2d(channel_size, momentum=0.05)
+        self.project_conv = nn.Conv2d(channel_size, 1, kernel_size=1, padding=0)
         self.eca = ECA(kernel_size=3)
-        self.project_conv = nn.Conv2d(channel_size * expand_ratio, 1, kernel_size=1, padding=0)
+        self.fc_project = nn.Linear(channel_size, channel_size, bias=False)
+        self.dropout = nn.Dropout(drop_rate)
 
     def forward(self, inputs, eca=True):
         # inputs shape: (batch*seq, height, width, in_channels)
@@ -477,11 +463,12 @@ class FlameAIModel(nn.Module):
         super().__init__()
        
         self.cnn = CNNModel(input_shape, local_eca=False, embed_dim=embed_dim, dropout=dropout)
-        self.next_frame_predictor = NextFramePredictor(embed_dim=embed_dim)
-        
+
         # Optional: Keep transformer for temporal reasoning
         self.transformer = Transformer(embed_dim, num_heads, 1, attention_dropout, dropout)
         self.use_transformer = False
+        
+        self.next_frame_predictor = NextFramePredictor(embed_dim=embed_dim)
 
     def forward(self, x):
         """
