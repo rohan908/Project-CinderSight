@@ -438,11 +438,14 @@ class FlameAIModel(nn.Module):
     """
     FLAME AI Model modified for NDWS wildfire prediction
     """
-    def __init__(self, input_shape, embed_dim=128, num_heads=8, attention_dropout=0.1, dropout=0.2):
+    def __init__(self, input_shape, embed_dim=128, num_heads=8, attention_dropout=0.1, dropout=0.2, use_decoder=False):
         super().__init__()
        
         self.cnn = CNNModel(input_shape, local_eca=False, embed_dim=embed_dim, dropout=dropout)
         self.next_frame_predictor = NextFramePredictor()
+        self.decoder = Decoder()
+
+        self.use_decoder = use_decoder
 
     def forward(self, x):
         """
@@ -458,6 +461,6 @@ class FlameAIModel(nn.Module):
         features = self.cnn(x)  # (batch, height, width, embed_dim)
         
         # Predict next-day fire mask
-        fire_prediction = self.next_frame_predictor(features)
+        prediction = self.decoder(features) if self.use_decoder else self.next_frame_predictor(features)
         
-        return fire_prediction
+        return prediction
