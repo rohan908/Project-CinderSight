@@ -58,14 +58,13 @@ Once deployed, Railway will give you a URL like:
 
 ### 2.1 Update Frontend Configuration
 
-Before deploying, update the Netlify configuration with your Railway URL:
+Before deploying, you need to set the Railway URL as an environment variable:
 
-1. **Edit `web/netlify.toml`**
-2. **Replace `your-railway-app-url.railway.app`** with your actual Railway URL
-3. **Update `web/.env.local`** (create if it doesn't exist):
+1. **Create `web/.env.local`** (if it doesn't exist):
    ```
    NEXT_PUBLIC_API_URL=https://your-railway-app-url.railway.app
    ```
+   Replace `your-railway-app-url.railway.app` with your actual Railway URL.
 
 ### 2.2 Deploy to Netlify
 
@@ -85,6 +84,7 @@ In Netlify dashboard:
    ```
    NEXT_PUBLIC_API_URL=https://your-railway-app-url.railway.app
    ```
+   Replace with your actual Railway URL.
 
 ### 2.4 Build Configuration
 
@@ -92,16 +92,13 @@ The project is configured to use:
 - **Node.js version**: 18 (specified in `.nvmrc` and `package.json`)
 - **npm version**: 9 (specified in `netlify.toml`)
 - **Updated dependencies**: All deprecated packages have been updated
+- **Direct API calls**: Frontend calls Railway backend directly (no Next.js API routes)
 
-### 2.5 Update API Routes
+### 2.5 Architecture Overview
 
-Since Netlify doesn't support Next.js API routes the same way, you have two options:
-
-#### Option A: Use Railway URL Directly (Recommended)
-Update your frontend to call the Railway URL directly instead of using `/api` routes.
-
-#### Option B: Use Netlify Functions
-Convert your API routes to Netlify functions (more complex).
+- **Frontend (Netlify)**: Next.js app that calls Railway backend directly
+- **Backend (Railway)**: FastAPI server with visualization endpoints
+- **Communication**: Direct HTTP calls from frontend to backend using `NEXT_PUBLIC_API_URL`
 
 ## Step 3: Test Your Deployment
 
@@ -121,6 +118,10 @@ Convert your API routes to Netlify functions (more complex).
    - Ensure Node.js version 18 is being used
    - Check that all deprecated packages have been updated
    - Verify ESLint configuration is compatible
+6. **API connection issues**:
+   - Verify `NEXT_PUBLIC_API_URL` is set correctly
+   - Check that Railway backend is running
+   - Ensure CORS is properly configured on the backend
 
 ### Railway Logs
 
@@ -152,10 +153,15 @@ The following fixes have been applied to resolve Netlify build issues:
 3. **Updated netlify.toml**:
    - Specified Node.js version 18
    - Specified npm version 9
+   - Removed API redirects (using direct calls instead)
 
 4. **Simplified ESLint config**:
    - Removed deprecated configurations
    - Kept only essential rules
+
+5. **Removed Next.js API routes**:
+   - Frontend now calls Railway backend directly
+   - No more `/api` route conflicts
 
 ## Cost Considerations
 
@@ -177,4 +183,5 @@ If you encounter issues:
 2. Verify all environment variables are set correctly
 3. Ensure your code works locally before deploying
 4. Check that all dependencies are properly specified
-5. For Netlify build issues, check the Node.js version and ESLint configuration 
+5. For Netlify build issues, check the Node.js version and ESLint configuration
+6. For API connection issues, verify the Railway URL and CORS settings 

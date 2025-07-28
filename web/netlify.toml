@@ -7,12 +7,6 @@
   NPM_VERSION = "9"
 
 [[redirects]]
-  from = "/api/*"
-  to = "https://your-railway-app-url.railway.app/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200 

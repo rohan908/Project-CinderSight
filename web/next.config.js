@@ -1,15 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async rewrites() {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${apiUrl}/:path*`,
-      },
-    ];
-  },
+  // No rewrites needed since we'll call Railway backend directly
+  // The frontend will use NEXT_PUBLIC_API_URL to make direct calls
 };
 
 module.exports = nextConfig; 

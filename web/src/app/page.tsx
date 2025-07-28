@@ -95,7 +95,8 @@ export default function Home() {
   const fetchSampleCount = async () => {
     try {
       console.log('Fetching sample count...')
-      const response = await fetch('/api/samples/count')
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/samples/count`)
       console.log('Sample count response status:', response.status)
       
       if (!response.ok) {
@@ -121,7 +122,8 @@ export default function Home() {
       setSelectedSample(randomIndex)
       
       // Generate visualizations for this sample
-      const response = await fetch('/api/visualization/generate', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,10 +160,11 @@ export default function Home() {
   const pollForCompletion = async (taskId: string) => {
     const maxAttempts = 60 // 5 minutes with 5-second intervals
     let attempts = 0
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
     while (attempts < maxAttempts) {
       try {
-        const response = await fetch(`/api/visualization/status/${taskId}`)
+        const response = await fetch(`${apiUrl}/visualization/status/${taskId}`)
         const status = await response.json()
 
         if (status.status === 'completed') {
@@ -169,32 +172,32 @@ export default function Home() {
           const metrics = status.metrics
           
           // Download feature images
-          const featuresResponse = await fetch(`/api/visualization/download/${taskId}/features`)
+          const featuresResponse = await fetch(`${apiUrl}/visualization/download/${taskId}/features`)
           const featuresBlob = await featuresResponse.blob()
           
           const imageUrls = {
-            previous_fire: `/api/visualization/image/${taskId}/fire_previous_fire.png`,
-            ground_truth: `/api/visualization/image/${taskId}/fire_ground_truth.png`,
-            prediction_probability: `/api/visualization/image/${taskId}/fire_prediction_probability.png`,
-            prediction_binary: `/api/visualization/image/${taskId}/fire_prediction_binary.png`,
-            comparison: `/api/visualization/image/${taskId}/fire_comparison_overlay.png`,
-            metrics_performance_chart: `/api/visualization/image/${taskId}/metrics_performance_chart.png`,
-            metrics_confusion_matrix: `/api/visualization/image/${taskId}/metrics_confusion_matrix.png`,
+            previous_fire: `${apiUrl}/visualization/image/${taskId}/fire_previous_fire.png`,
+            ground_truth: `${apiUrl}/visualization/image/${taskId}/fire_ground_truth.png`,
+            prediction_probability: `${apiUrl}/visualization/image/${taskId}/fire_prediction_probability.png`,
+            prediction_binary: `${apiUrl}/visualization/image/${taskId}/fire_prediction_binary.png`,
+            comparison: `${apiUrl}/visualization/image/${taskId}/fire_comparison_overlay.png`,
+            metrics_performance_chart: `${apiUrl}/visualization/image/${taskId}/metrics_performance_chart.png`,
+            metrics_confusion_matrix: `${apiUrl}/visualization/image/${taskId}/metrics_confusion_matrix.png`,
             feature_images: {
-              elevation: `/api/visualization/image/${taskId}/feature_12_elevation.png`,
-              temperature: `/api/visualization/image/${taskId}/feature_03_tmmx.png`,
-              humidity: `/api/visualization/image/${taskId}/feature_02_sph.png`,
-              wind_speed: `/api/visualization/image/${taskId}/feature_00_vs.png`,
-              wind_direction: `/api/visualization/image/${taskId}/feature_05_th.png`,
-              precipitation: `/api/visualization/image/${taskId}/feature_01_pr.png`,
-              pressure: `/api/visualization/image/${taskId}/feature_07_pdsi.png`,
-              solar_radiation: `/api/visualization/image/${taskId}/feature_06_erc.png`,
-              visibility: `/api/visualization/image/${taskId}/feature_06_erc.png`,
-              slope: `/api/visualization/image/${taskId}/feature_14_slope.png`,
-              aspect: `/api/visualization/image/${taskId}/feature_13_aspect.png`,
-              ndvi: `/api/visualization/image/${taskId}/feature_15_ndvi.png`,
-              land_cover: `/api/visualization/image/${taskId}/feature_16_evi.png`,
-              population: `/api/visualization/image/${taskId}/feature_17_population.png`,
+              elevation: `${apiUrl}/visualization/image/${taskId}/feature_12_elevation.png`,
+              temperature: `${apiUrl}/visualization/image/${taskId}/feature_03_tmmx.png`,
+              humidity: `${apiUrl}/visualization/image/${taskId}/feature_02_sph.png`,
+              wind_speed: `${apiUrl}/visualization/image/${taskId}/feature_00_vs.png`,
+              wind_direction: `${apiUrl}/visualization/image/${taskId}/feature_05_th.png`,
+              precipitation: `${apiUrl}/visualization/image/${taskId}/feature_01_pr.png`,
+              pressure: `${apiUrl}/visualization/image/${taskId}/feature_07_pdsi.png`,
+              solar_radiation: `${apiUrl}/visualization/image/${taskId}/feature_06_erc.png`,
+              visibility: `${apiUrl}/visualization/image/${taskId}/feature_06_erc.png`,
+              slope: `${apiUrl}/visualization/image/${taskId}/feature_14_slope.png`,
+              aspect: `${apiUrl}/visualization/image/${taskId}/feature_13_aspect.png`,
+              ndvi: `${apiUrl}/visualization/image/${taskId}/feature_15_ndvi.png`,
+              land_cover: `${apiUrl}/visualization/image/${taskId}/feature_16_evi.png`,
+              population: `${apiUrl}/visualization/image/${taskId}/feature_17_population.png`,
             }
           }
            
@@ -230,7 +233,8 @@ export default function Home() {
       setSelectedSample(sampleIdx)
       
       // Generate visualizations for this sample
-      const response = await fetch('/api/visualization/generate', {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
