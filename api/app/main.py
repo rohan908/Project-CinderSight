@@ -1,10 +1,21 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Dict, Any
+import sys
+import os
+from pathlib import Path
+
+# Add model directory to path
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
 
 # Import visualization API
 from .visualization import visualization_api, VisualizationRequest
+
+# Global variables for data
+available_samples = 0
+data_loaded = False
 
 app = FastAPI(
     title="CinderSight API",
@@ -25,11 +36,39 @@ class PredictRequest(BaseModel):
     ignition_point: Dict[str, float]
     date: str
 
+@app.on_event("startup")
+async def startup_event():
+    """Load data on server startup"""
+    global available_samples, data_loaded
+    try:
+        # Import here to avoid circular imports
+        from train import load_ndws_data
+        
+        # Try to load test data first, fallback to train
+        try:
+            features, targets = load_ndws_data("../model/data/processed", "test")
+        except:
+            features, targets = load_ndws_data("../model/data/processed", "train")
+        
+        if features is not None and targets is not None:
+            available_samples = len(features)
+            data_loaded = True
+            print(f"✅ Data loaded successfully! Available samples: {available_samples}")
+        else:
+            print("⚠️ Could not load data")
+            
+    except Exception as e:
+        print(f"❌ Error loading data: {e}")
+        available_samples = 0
+        data_loaded = False
+
 @app.get("/")
 async def root():
     return {
         "message": "CinderSight API", 
         "status": "running",
+        "data_loaded": data_loaded,
+        "available_samples": available_samples,
         "endpoints": {
             "/predict": "POST - Fire prediction",
             "/visualization/generate": "POST - Generate visualizations",
@@ -42,8 +81,72 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "data_loaded": data_loaded,
+        "available_samples": available_samples
+    }
 
+@app.get("/samples/count")
+async def get_sample_count():
+    """Get the total number of available samples"""
+    return {
+        "total_samples": available_samples,
+        "data_loaded": data_loaded
+    }
+
+@app.get("/visualization/image/{task_id}/{filename}")
+async def get_visualization_image(task_id: str, filename: str):
+    """Serve individual visualization images"""
+    try:
+        print(f"🖼️ Requesting image: {task_id}/{filename}")
+        
+        # Get task status to find the output directory
+        task_status = visualization_api.get_task_status(task_id)
+        print(f"📊 Task status: {task_status['status']}")
+        
+        if task_status["status"] != "completed":
+            raise HTTPException(status_code=400, detail="Task not completed")
+        
+        output_dir = Path(task_status["output_directory"])
+        
+        # The output_directory should already point to the visualizations directory
+        # where the images are stored
+        image_path = output_dir / filename
+        
+        print(f"📁 Output directory from task: {output_dir}")
+        print(f"📁 Looking for image at: {image_path}")
+        print(f"📁 Directory exists: {image_path.parent.exists()}")
+        print(f"📁 Image exists: {image_path.exists()}")
+        
+        if not image_path.exists():
+            # List files in directory for debugging
+            if image_path.parent.exists():
+                files = list(image_path.parent.iterdir())
+                print(f"📁 Files in directory: {[f.name for f in files]}")
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        print(f"✅ Serving image: {image_path}")
+        return FileResponse(image_path, media_type="image/png")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error serving image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/predict")
+async def predict(request: PredictRequest):
+    # Placeholder response - no actual implementation yet
+    return {
+        "prediction": {
+            "risk_level": "medium",
+            "probability": 0.5,
+            "spread_direction": "NE",
+            "estimated_area": 5.0,
+            "confidence": 0.7
+        }
+    }
 
 # Visualization endpoints
 @app.post("/visualization/generate")

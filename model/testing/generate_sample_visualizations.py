@@ -372,83 +372,91 @@ class SampleVisualizationGenerator:
         return generated_files
     
     def generate_metrics_dashboard(self, prediction: np.ndarray, target: np.ndarray, output_dir: Path):
-        """Generate metrics dashboard for the sample"""
-        print("Generating metrics dashboard...")
+        """Generate separate metrics visualizations for the sample"""
+        print("Generating metrics visualizations...")
         
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
         target_tensor = torch.FloatTensor(target).unsqueeze(0)
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
         
-        # Create dashboard
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+        generated_files = []
         
-        # Metrics bar chart
+        # 1. Metrics bar chart
+        plt.figure(figsize=(10, 6))
         metric_names = ['Precision', 'Recall', 'F1 Score', 'IoU']
         metric_values = [metrics['precision'], metrics['recall'], metrics['f1'], metrics['iou']]
         
         colors = ['skyblue', 'lightgreen', 'gold', 'lightcoral']
-        bars = ax1.bar(metric_names, metric_values, color=colors)
-        ax1.set_ylabel('Score', fontsize=12)
-        ax1.set_title('Sample Performance Metrics', fontsize=14)
-        ax1.set_ylim(0, 1)
-        ax1.grid(axis='y', alpha=0.3)
+        bars = plt.bar(metric_names, metric_values, color=colors)
+        plt.ylabel('Score', fontsize=12)
+        plt.title('Sample Performance Metrics', fontsize=14, fontweight='bold')
+        plt.ylim(0, 1)
+        plt.grid(axis='y', alpha=0.3)
         
         # Add value labels on bars
         for bar, value in zip(bars, metric_values):
-            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
+            plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01, 
                     f'{value:.3f}', ha='center', va='bottom', fontsize=10)
         
-        # Confusion matrix components
+        plt.tight_layout()
+        filename = "metrics_performance_chart.png"
+        filepath = output_dir / filename
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        generated_files.append(filename)
+        print(f"  Generated: {filename}")
+        
+        # 2. Confusion matrix
+        plt.figure(figsize=(8, 6))
         tp, fp, fn, tn = metrics['tp'], metrics['fp'], metrics['fn'], metrics['tn']
         confusion_data = np.array([[tp, fp], [fn, tn]])
         
-        im = ax2.imshow(confusion_data, cmap='Blues')
-        ax2.set_title('Confusion Matrix Components', fontsize=14)
-        ax2.set_xticks([0, 1])
-        ax2.set_yticks([0, 1])
-        ax2.set_xticklabels(['Predicted\nFire', 'Predicted\nNo Fire'])
-        ax2.set_yticklabels(['Actual\nFire', 'Actual\nNo Fire'])
+        im = plt.imshow(confusion_data, cmap='Blues')
+        plt.title('Confusion Matrix Components', fontsize=14, fontweight='bold')
+        plt.xticks([0, 1], ['Predicted\nFire', 'Predicted\nNo Fire'])
+        plt.yticks([0, 1], ['Actual\nFire', 'Actual\nNo Fire'])
         
         # Add text annotations
         for i in range(2):
             for j in range(2):
-                ax2.text(j, i, f'{confusion_data[i, j]:.0f}', ha='center', va='center', 
+                plt.text(j, i, f'{confusion_data[i, j]:.0f}', ha='center', va='center', 
                         fontsize=12, color='white' if confusion_data[i, j] > confusion_data.max()/2 else 'black')
         
-        # Model configuration info
-        config_text = f"""Model Configuration:
-            Embed Dim: {self.model_config.get('embed_dim', 'N/A')}
-            Features: {self.model_config.get('num_features', 19)}
-            Max Height: {self.model_config.get('max_height', 64)}
-            Max Width: {self.model_config.get('max_width', 64)}
-            Batch Size: {self.model_config.get('batch_size', 'N/A')}
-            Fire Weight: {self.model_config.get('fire_weight', 'N/A')}
-            Dice Weight: {self.model_config.get('dice_weight', 'N/A')}"""
-        
-        ax3.text(0.05, 0.95, config_text, transform=ax3.transAxes, fontsize=11,
-                verticalalignment='top', bbox=dict(boxstyle="round,pad=0.5", 
-                facecolor="lightgray", alpha=0.8))
-        ax3.set_title('Model Configuration', fontsize=14)
-        ax3.axis('off')
-        
-        plt.suptitle('Sample Metrics Dashboard', fontsize=16, y=1.02)
+        plt.colorbar(im, shrink=0.8)
         plt.tight_layout()
-        
-        filename = "metrics_dashboard.png"
+        filename = "metrics_confusion_matrix.png"
         filepath = output_dir / filename
         plt.savefig(filepath, dpi=300, bbox_inches='tight')
         plt.close()
-        
+        generated_files.append(filename)
         print(f"  Generated: {filename}")
+        
+        # 3. Model configuration (as text file instead of graph)
+        config_text = f"""Model Configuration:
+Embed Dim: {self.model_config.get('embed_dim', 'N/A')}
+Features: {self.model_config.get('num_features', 19)}
+Max Height: {self.model_config.get('max_height', 64)}
+Max Width: {self.model_config.get('max_width', 64)}
+Batch Size: {self.model_config.get('batch_size', 'N/A')}
+Fire Weight: {self.model_config.get('fire_weight', 'N/A')}
+Dice Weight: {self.model_config.get('dice_weight', 'N/A')}"""
+        
+        filename = "model_configuration.txt"
+        filepath = output_dir / filename
+        with open(filepath, 'w') as f:
+            f.write(config_text)
+        generated_files.append(filename)
+        print(f"  Generated: {filename}")
+        
         print(f"  Sample Metrics - F1: {metrics['f1']:.3f}, IoU: {metrics['iou']:.3f}, "
               f"Precision: {metrics['precision']:.3f}, Recall: {metrics['recall']:.3f}")
         
-        return filename, metrics
+        return generated_files, metrics
     
     def generate_sample_summary(self, sample_idx: int, metrics: Dict, 
                                feature_files: List[str], fire_files: List[str], 
-                               metrics_file: str, output_dir: Path):
+                               metrics_files: List[str], output_dir: Path):
         """Generate JSON metrics and feature documentation"""
         
         # Generate metrics JSON
@@ -533,9 +541,17 @@ class SampleVisualizationGenerator:
             }
         }
         
-        feature_doc["metrics_dashboard"] = {
-            "description": "Comprehensive performance metrics visualization",
-            "filename": "metrics_dashboard.png"
+        feature_doc["metrics_performance_chart"] = {
+            "description": "Performance metrics bar chart (Precision, Recall, F1, IoU)",
+            "filename": "metrics_performance_chart.png"
+        }
+        feature_doc["metrics_confusion_matrix"] = {
+            "description": "Confusion matrix visualization (TP, FP, FN, TN)",
+            "filename": "metrics_confusion_matrix.png"
+        }
+        feature_doc["model_configuration"] = {
+            "description": "Model configuration parameters",
+            "filename": "model_configuration.txt"
         }
         
         doc_file_path = output_dir / "feature_documentation.json"
@@ -563,9 +579,9 @@ def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenera
         feature_files = generator.generate_individual_feature_visualizations(features, output_dir)
         fire_files = generator.generate_fire_progression_visualization(
             features, target, prediction, output_dir)
-        metrics_file, metrics = generator.generate_metrics_dashboard(prediction, target, output_dir)
+        metrics_files, metrics = generator.generate_metrics_dashboard(prediction, target, output_dir)
         metrics_file_path, doc_file_path = generator.generate_sample_summary(
-            sample_idx, metrics, feature_files, fire_files, metrics_file, output_dir)
+            sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
         
         return {
             'sample_idx': sample_idx,

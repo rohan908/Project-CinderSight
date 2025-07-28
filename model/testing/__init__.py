@@ -13,10 +13,10 @@ __version__ = "1.0.0"
 __author__ = "FLAME AI Team"
 
 # Import main classes for existing model analysis
-from .compare_existing_models import ExistingModelComparator
+# from .compare_existing_models import ExistingModelComparator  # Temporarily disabled due to missing function
 from .visualize_results import ModelVisualizer
 
 __all__ = [
-    'ExistingModelComparator',
+    # 'ExistingModelComparator',  # Temporarily disabled
     'ModelVisualizer'
 ] 
