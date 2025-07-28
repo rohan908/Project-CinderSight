@@ -1,0 +1,8 @@
+Model Configuration:
+Embed Dim: 128
+Features: 171
+Max Height: 64
+Max Width: 64
+Batch Size: 16
+Fire Weight: 10.0
+Dice Weight: 2.0

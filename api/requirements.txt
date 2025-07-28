@@ -6,4 +6,13 @@ pytest==7.4.3
 pytest-asyncio==0.21.1
 httpx==0.25.2
 # Additional dependencies for visualization API
-aiofiles==23.2.1 
+aiofiles==23.2.1
+# Model and data processing dependencies
+torch==2.0.1
+torchvision==0.15.2
+numpy==1.24.3
+scipy==1.11.1
+matplotlib==3.7.2
+seaborn==0.12.2
+Pillow==10.0.0
+scikit-learn==1.3.0 
