@@ -492,7 +492,7 @@ export default function Home() {
                      />
                    </div>
                  </div>
-                 <div className="space-y-2">
+              <div className="space-y-2">
                    <h4 className="font-medium text-sm">IoU Comparison</h4>
                    <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
                      <Image 
@@ -581,15 +581,15 @@ export default function Home() {
                   {FEATURES.find(f => f.id === selectedFeature)?.description}
                 </CardDescription>
         </CardHeader>
-                <CardContent>
+        <CardContent>
                  <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
                    {featureLoading ? (
                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
                        <div className="flex items-center space-x-2">
                          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                          <span className="text-sm text-gray-600">Loading feature...</span>
-                       </div>
-                     </div>
+              </div>
+            </div>
                    ) : (
                      <Image 
                        src={sampleData.images.feature_images[selectedFeature]} 
@@ -627,7 +627,7 @@ export default function Home() {
                     onLoad={() => console.log('✅ Performance metrics chart loaded successfully')}
                     onError={() => console.error('❌ Performance metrics chart failed to load')}
                   />
-                </div>
+              </div>
               </CardContent>
             </Card>
 
@@ -651,9 +651,9 @@ export default function Home() {
                     onLoad={() => console.log('✅ Confusion matrix loaded successfully')}
                     onError={() => console.error('❌ Confusion matrix failed to load')}
                   />
-                </div>
-              </CardContent>
-            </Card>
+          </div>
+        </CardContent>
+      </Card>
           </div>
         </div>
       ) : null}
