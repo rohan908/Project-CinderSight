@@ -1,76 +1,288 @@
 'use client'
 
-import { useState } from 'react'
-import { Flame, MapPin, Calendar, AlertTriangle, TrendingUp, Globe } from 'lucide-react'
-import dynamic from 'next/dynamic'
-import { format } from 'date-fns'
+import { useState, useEffect } from 'react'
+import { 
+  Flame, 
+  MapPin,  
+  AlertTriangle, 
+  TrendingUp, 
+  Globe,
+  Loader2,
+  BarChart3,
+  Image as ImageIcon,
+  Settings
+} from 'lucide-react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
 
-// Dynamically import the map component to avoid SSR issues
-const FireMap = dynamic(() => import('@/components/FireMap'), { ssr: false })
-
-interface PredictionResult {
-  risk_level: 'low' | 'medium' | 'high' | 'extreme'
-  probability: number
-  spread_direction: string
-  estimated_area: number
-  confidence: number
+interface SampleData {
+  sample_idx: number
+  metrics: {
+    f1: number
+    iou: number
+    precision: number
+    recall: number
+    tp: number
+    fp: number
+    fn: number
+    tn: number
+  }
+  images: {
+    previous_fire: string
+    ground_truth: string
+    prediction_probability: string
+    prediction_binary: string
+    comparison: string
+    metrics_performance_chart: string
+    metrics_confusion_matrix: string
+    feature_images: Record<string, string>
+  }
 }
 
-export default function Home() {
-  const [selectedLocation, setSelectedLocation] = useState<[number, number] | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'))
-  const [prediction, setPrediction] = useState<PredictionResult | null>(null)
-  const [loading, setLoading] = useState(false)
+const FEATURES = [
+  { id: 'elevation', name: 'Elevation', description: 'Terrain elevation in meters', category: 'Terrain' },
+  { id: 'temperature', name: 'Temperature', description: 'Current temperature in °C', category: 'Weather' },
+  { id: 'humidity', name: 'Humidity', description: 'Relative humidity percentage', category: 'Weather' },
+  { id: 'wind_speed', name: 'Wind Speed', description: 'Wind speed in m/s', category: 'Weather' },
+  { id: 'wind_direction', name: 'Wind Direction', description: 'Wind direction in degrees', category: 'Weather' },
+  { id: 'precipitation', name: 'Precipitation', description: 'Precipitation in mm', category: 'Weather' },
+  { id: 'pressure', name: 'Pressure', description: 'Atmospheric pressure in hPa', category: 'Weather' },
+  { id: 'solar_radiation', name: 'Solar Radiation', description: 'Solar radiation in W/m²', category: 'Weather' },
+  { id: 'visibility', name: 'Visibility', description: 'Visibility in km', category: 'Weather' },
+  { id: 'slope', name: 'Slope', description: 'Terrain slope in degrees', category: 'Terrain' },
+  { id: 'aspect', name: 'Aspect', description: 'Terrain aspect in degrees', category: 'Terrain' },
+  { id: 'ndvi', name: 'NDVI', description: 'Normalized Difference Vegetation Index', category: 'Vegetation' },
+  { id: 'land_cover', name: 'Land Cover', description: 'Land cover type', category: 'Vegetation' },
+  { id: 'population', name: 'Population', description: 'Population density in people/km²', category: 'Human' },
+]
 
-  const handleLocationSelect = (lat: number, lng: number) => {
-    setSelectedLocation([lat, lng])
+export default function Home() {
+  const [sampleData, setSampleData] = useState<SampleData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedSample, setSelectedSample] = useState<number | null>(null)
+  const [selectedFeature, setSelectedFeature] = useState('elevation')
+  const [availableSamples, setAvailableSamples] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  const [featureLoading, setFeatureLoading] = useState(false)
+
+  // Check if mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
+  // Load sample count on mount
+  useEffect(() => {
+    fetchSampleCount()
+  }, [])
+
+  // Load random sample on mount
+  useEffect(() => {
+    if (availableSamples > 0) {
+      loadRandomSample()
+    }
+  }, [availableSamples])
+
+  const fetchSampleCount = async () => {
+    try {
+      console.log('Fetching sample count...')
+      const response = await fetch('/api/samples/count')
+      console.log('Sample count response status:', response.status)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      console.log('Sample count data:', data)
+      setAvailableSamples(data.total_samples)
+    } catch (error) {
+      console.error('Error fetching sample count:', error)
+      setError(`Failed to load sample count: ${error}`)
+    }
   }
 
-  const handlePredict = async () => {
-    if (!selectedLocation) return
-
+  const loadRandomSample = async () => {
     setLoading(true)
+    setError(null)
+    
     try {
-      const response = await fetch('/api/predict', {
+      // Generate random sample index
+      const randomIndex = Math.floor(Math.random() * availableSamples)
+      setSelectedSample(randomIndex)
+      
+      // Generate visualizations for this sample
+      const response = await fetch('/api/visualization/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ignition_point: {
-            latitude: selectedLocation[0],
-            longitude: selectedLocation[1]
-          },
-          date: selectedDate
+          sample_idx: randomIndex,
+          save_images: false,
+          overwrite_existing: true,
+          include_features: true,
+          include_fire_progression: true,
+          include_metrics_dashboard: true,
+          include_documentation: true
         }),
       })
 
-      if (response.ok) {
-        const result = await response.json()
-        setPrediction(result.prediction)
-      } else {
-        console.error('Prediction failed')
+      if (!response.ok) {
+        throw new Error('Failed to generate visualizations')
       }
+
+      const result = await response.json()
+      const taskId = result.task_id
+
+      // Poll for completion
+      await pollForCompletion(taskId)
+      
     } catch (error) {
-      console.error('Error making prediction:', error)
+      console.error('Error loading sample:', error)
+      setError('Failed to load sample data')
     } finally {
       setLoading(false)
     }
   }
 
-  const getRiskBadgeVariant = (risk: string) => {
-    switch (risk) {
-      case 'low': return 'default'
-      case 'medium': return 'secondary'
-      case 'high': return 'destructive'
-      case 'extreme': return 'destructive'
-      default: return 'default'
+  const pollForCompletion = async (taskId: string) => {
+    const maxAttempts = 60 // 5 minutes with 5-second intervals
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      try {
+        const response = await fetch(`/api/visualization/status/${taskId}`)
+        const status = await response.json()
+
+        if (status.status === 'completed') {
+          // Use metrics from status response
+          const metrics = status.metrics
+          
+          // Download feature images
+          const featuresResponse = await fetch(`/api/visualization/download/${taskId}/features`)
+          const featuresBlob = await featuresResponse.blob()
+          
+          const imageUrls = {
+            previous_fire: `/api/visualization/image/${taskId}/fire_previous_fire.png`,
+            ground_truth: `/api/visualization/image/${taskId}/fire_ground_truth.png`,
+            prediction_probability: `/api/visualization/image/${taskId}/fire_prediction_probability.png`,
+            prediction_binary: `/api/visualization/image/${taskId}/fire_prediction_binary.png`,
+            comparison: `/api/visualization/image/${taskId}/fire_comparison_overlay.png`,
+            metrics_performance_chart: `/api/visualization/image/${taskId}/metrics_performance_chart.png`,
+            metrics_confusion_matrix: `/api/visualization/image/${taskId}/metrics_confusion_matrix.png`,
+            feature_images: {
+              elevation: `/api/visualization/image/${taskId}/feature_12_elevation.png`,
+              temperature: `/api/visualization/image/${taskId}/feature_03_tmmx.png`,
+              humidity: `/api/visualization/image/${taskId}/feature_02_sph.png`,
+              wind_speed: `/api/visualization/image/${taskId}/feature_00_vs.png`,
+              wind_direction: `/api/visualization/image/${taskId}/feature_05_th.png`,
+              precipitation: `/api/visualization/image/${taskId}/feature_01_pr.png`,
+              pressure: `/api/visualization/image/${taskId}/feature_07_pdsi.png`,
+              solar_radiation: `/api/visualization/image/${taskId}/feature_06_erc.png`,
+              visibility: `/api/visualization/image/${taskId}/feature_06_erc.png`,
+              slope: `/api/visualization/image/${taskId}/feature_14_slope.png`,
+              aspect: `/api/visualization/image/${taskId}/feature_13_aspect.png`,
+              ndvi: `/api/visualization/image/${taskId}/feature_15_ndvi.png`,
+              land_cover: `/api/visualization/image/${taskId}/feature_16_evi.png`,
+              population: `/api/visualization/image/${taskId}/feature_17_population.png`,
+            }
+          }
+           
+           console.log('📊 Metrics received:', metrics)
+           console.log('🖼️ Image URLs created:', imageUrls)
+
+          setSampleData({
+            sample_idx: selectedSample!,
+            metrics: metrics,
+            images: imageUrls
+          })
+          return
+        } else if (status.status === 'failed') {
+          throw new Error(status.error_message || 'Task failed')
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 5000)) // Wait 5 seconds
+        attempts++
+      } catch (error) {
+        console.error('Error polling task status:', error)
+        throw error
+      }
     }
+    
+    throw new Error('Task timed out')
+  }
+
+  const loadSpecificSample = async (sampleIdx: number) => {
+    setLoading(true)
+    setError(null)
+    
+    try {
+      setSelectedSample(sampleIdx)
+      
+      // Generate visualizations for this sample
+      const response = await fetch('/api/visualization/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sample_idx: sampleIdx,
+          save_images: false,
+          overwrite_existing: true,
+          include_features: true,
+          include_fire_progression: true,
+          include_metrics_dashboard: true,
+          include_documentation: true
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to generate visualizations')
+      }
+
+      const result = await response.json()
+      const taskId = result.task_id
+
+      // Poll for completion
+      await pollForCompletion(taskId)
+      
+    } catch (error) {
+      console.error('Error loading sample:', error)
+      setError('Failed to load sample data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <Card className="max-w-md mx-auto">
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center">
+              <AlertTriangle className="w-5 h-5 mr-2" />
+              Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={loadRandomSample} className="w-full">
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (
@@ -82,154 +294,365 @@ export default function Home() {
           <h1 className="text-4xl font-bold text-gray-900">CinderSight</h1>
         </div>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Advanced wildfire prediction powered by the Canadian Fire Database and AI
+          Deep Learning Wildfire Spread Prediction Model
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Map Section */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Globe className="w-6 h-6 mr-2 text-blue-600" />
-                Select Location
-              </CardTitle>
-              <CardDescription>
-                Click on the map to select a location in Canada for fire prediction
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FireMap 
-                onLocationSelect={handleLocationSelect}
-                selectedLocation={selectedLocation}
-              />
-              {selectedLocation && (
-                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    Selected: {selectedLocation[0].toFixed(4)}, {selectedLocation[1].toFixed(4)}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Prediction Form */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <TrendingUp className="w-6 h-6 mr-2 text-green-600" />
-                Fire Prediction
-              </CardTitle>
-              <CardDescription>
-                Choose a date and get fire risk predictions for the selected location
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="date" className="flex items-center">
-                  <Calendar className="w-4 h-4 mr-2" />
-                  Prediction Date
-                </Label>
-                <Input
-                  id="date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </div>
-
-              <Button
-                onClick={handlePredict}
-                disabled={!selectedLocation || loading}
-                className="w-full"
-                size="lg"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                ) : (
-                  <>
-                    <Flame className="w-5 h-5 mr-2" />
-                    Predict Fire Risk
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Results */}
-          {prediction && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <AlertTriangle className="w-5 h-5 mr-2 text-red-600" />
-                  Prediction Results
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <h4 className="font-semibold">Risk Level</h4>
-                    <p className="text-sm text-gray-600">Probability: {(prediction.probability * 100).toFixed(1)}%</p>
-                  </div>
-                  <Badge variant={getRiskBadgeVariant(prediction.risk_level)}>
-                    {prediction.risk_level.toUpperCase()}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Spread Direction</p>
-                    <p className="font-semibold">{prediction.spread_direction}</p>
-                  </div>
-                  <div className="p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600">Estimated Area</p>
-                    <p className="font-semibold">{prediction.estimated_area.toFixed(1)} km²</p>
-                  </div>
-                </div>
-
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-600">Confidence: {(prediction.confidence * 100).toFixed(1)}%</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      {/* Features Section */}
-      <Card className="mt-12">
+      {/* Sample Selection */}
+      <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-center text-3xl">Why CinderSight?</CardTitle>
+          <CardTitle className="flex items-center">
+            <MapPin className="w-6 h-6 mr-2 text-blue-600" />
+            Sample Selection
+          </CardTitle>
+          <CardDescription>
+            Choose a sample to analyze wildfire spread predictions
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Flame className="w-8 h-8 text-blue-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Real-time Data</h3>
-              <p className="text-gray-600">Powered by the comprehensive Canadian Fire Database with live updates</p>
+        <CardContent className="flex flex-col sm:flex-row gap-4">
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-2 block">Current Sample</label>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-lg px-3 py-1">
+                {selectedSample !== null ? selectedSample : 'Loading...'}
+              </Badge>
+              <span className="text-sm text-gray-500">
+                of {availableSamples} available
+              </span>
             </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <TrendingUp className="w-8 h-8 text-green-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">AI-Powered</h3>
-              <p className="text-gray-600">Advanced machine learning models for accurate fire spread predictions</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MapPin className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Interactive Maps</h3>
-              <p className="text-gray-600">Visualize fire risks and spread patterns on detailed maps</p>
-            </div>
+          </div>
+                    <div className="flex gap-2 items-center">
+            <Button 
+              onClick={loadRandomSample} 
+              disabled={loading}
+              className="flex-1 sm:flex-none"
+            >
+              {loading ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Globe className="w-4 h-4 mr-2" />
+              )}
+              Random Sample
+            </Button>
+            {!isMobile && (
+              <>
+                <input
+                  type="number"
+                  min="0"
+                  max={availableSamples - 1}
+                  placeholder="Sample #"
+                  className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-9"
+                  style={{ height: '36px' }}
+                  value={selectedSample?.toString() || ''}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value)
+                    if (!isNaN(value) && value >= 0 && value < availableSamples) {
+                      setSelectedSample(value)
+                    }
+                  }}
+                  disabled={loading}
+                />
+                <Button 
+                  onClick={() => selectedSample !== null && loadSpecificSample(selectedSample)}
+                  disabled={loading || selectedSample === null}
+                  size="sm"
+                >
+                  Load
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
+
+      {loading ? (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Loading Sample Data...</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center space-x-4">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                <div>
+                  <p className="text-sm font-medium">Generating visualizations</p>
+                  <p className="text-sm text-gray-500">This may take a few moments...</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Loading skeletons */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-48 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      ) : sampleData ? (
+        <div className="space-y-6">
+          {/* Metrics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">F1 Score</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold">
+                    {(sampleData.metrics.f1 * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">IoU</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <span className="text-2xl font-bold">
+                    {(sampleData.metrics.iou * 100).toFixed(1)}%
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Precision</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <span className="text-2xl font-bold">
+                  {(sampleData.metrics.precision * 100).toFixed(1)}%
+                </span>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-600">Recall</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <span className="text-2xl font-bold">
+                  {(sampleData.metrics.recall * 100).toFixed(1)}%
+                </span>
+            </CardContent>
+          </Card>
+        </div>
+
+          {/* Always Visible Fire Masks */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Flame className="w-6 h-6 mr-2 text-red-600" />
+                Fire Spread Analysis
+              </CardTitle>
+              <CardDescription>
+                Previous fire, prediction, and comparison visualizations
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <div className="space-y-2">
+                   <h4 className="font-medium text-sm">Ground Truth</h4>
+                   <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
+                     <Image 
+                       src={sampleData.images.ground_truth} 
+                       alt="Ground Truth Fire Mask"
+                       fill
+                       className="object-contain"
+                       onLoad={() => console.log('✅ Ground truth image loaded successfully')}
+                       onError={() => console.error('❌ Ground truth image failed to load')}
+                     />
+                   </div>
+                 </div>
+                 <div className="space-y-2">
+                   <h4 className="font-medium text-sm">Prediction (Probability)</h4>
+                   <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
+                     <Image 
+                       src={sampleData.images.prediction_probability} 
+                       alt="Prediction Probability"
+                       fill
+                       className="object-contain"
+                       onLoad={() => console.log('✅ Prediction probability image loaded successfully')}
+                       onError={() => console.error('❌ Prediction probability image failed to load')}
+                     />
+                   </div>
+                 </div>
+                 <div className="space-y-2">
+                   <h4 className="font-medium text-sm">IoU Comparison</h4>
+                   <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
+                     <Image 
+                       src={sampleData.images.comparison} 
+                       alt="IoU Comparison"
+                       fill
+                       className="object-contain"
+                       onLoad={() => console.log('✅ IoU comparison image loaded successfully')}
+                       onError={() => console.error('❌ IoU comparison image failed to load')}
+                     />
+                   </div>
+                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Feature Selection and Display */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Feature Sidebar */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Settings className="w-5 h-5 mr-2" />
+                  Input Features
+                </CardTitle>
+                <CardDescription>
+                  Select a feature to visualize
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isMobile ? (
+                  <Select value={selectedFeature} onValueChange={(value: string) => {
+                    setFeatureLoading(true)
+                    setSelectedFeature(value)
+                    // Simulate loading delay for feature switching
+                    setTimeout(() => setFeatureLoading(false), 500)
+                  }}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FEATURES.map((feature) => (
+                        <SelectItem key={feature.id} value={feature.id}>
+                          {feature.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="space-y-2">
+                    {FEATURES.map((feature) => (
+                      <button
+                        key={feature.id}
+                        onClick={() => {
+                          setFeatureLoading(true)
+                          setSelectedFeature(feature.id)
+                          // Simulate loading delay for feature switching
+                          setTimeout(() => setFeatureLoading(false), 500)
+                        }}
+                        className={`w-full text-left p-2 rounded-lg transition-colors ${
+                          selectedFeature === feature.id
+                            ? 'bg-blue-100 text-blue-900'
+                            : 'hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="font-medium text-sm">{feature.name}</div>
+                        <div className="text-xs text-gray-500">{feature.description}</div>
+                        <Badge variant="outline" className="text-xs mt-1">
+                          {feature.category}
+                  </Badge>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Feature Visualization */}
+            <Card className="lg:col-span-3">
+        <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BarChart3 className="w-5 h-5 mr-2" />
+                  {FEATURES.find(f => f.id === selectedFeature)?.name} Visualization
+                </CardTitle>
+                <CardDescription>
+                  {FEATURES.find(f => f.id === selectedFeature)?.description}
+                </CardDescription>
+        </CardHeader>
+                <CardContent>
+                 <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
+                   {featureLoading ? (
+                     <div className="w-full h-full flex items-center justify-center bg-gray-100">
+                       <div className="flex items-center space-x-2">
+                         <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                         <span className="text-sm text-gray-600">Loading feature...</span>
+                       </div>
+                     </div>
+                   ) : (
+                     <Image 
+                       src={sampleData.images.feature_images[selectedFeature]} 
+                       alt={`${FEATURES.find(f => f.id === selectedFeature)?.name} Visualization`}
+                       fill
+                       className="object-contain"
+                       onLoad={() => console.log(`✅ ${selectedFeature} image loaded successfully`)}
+                       onError={() => console.error(`❌ ${selectedFeature} image failed to load`)}
+                     />
+                   )}
+              </div>
+               </CardContent>
+            </Card>
+            </div>
+
+                    {/* Metrics Dashboard */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
+                  Performance Metrics
+                </CardTitle>
+                <CardDescription>
+                  Precision, Recall, F1 Score, and IoU
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative w-full aspect-[4/3] rounded-lg border overflow-hidden bg-gray-50">
+                  <Image 
+                    src={sampleData.images.metrics_performance_chart} 
+                    alt="Performance Metrics Chart"
+                    fill
+                    className="object-contain"
+                    onLoad={() => console.log('✅ Performance metrics chart loaded successfully')}
+                    onError={() => console.error('❌ Performance metrics chart failed to load')}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <BarChart3 className="w-5 h-5 mr-2 text-blue-600" />
+                  Confusion Matrix
+                </CardTitle>
+                <CardDescription>
+                  True Positives, False Positives, True Negatives, False Negatives
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="relative w-full aspect-[4/3] rounded-lg border overflow-hidden bg-gray-50">
+                  <Image 
+                    src={sampleData.images.metrics_confusion_matrix} 
+                    alt="Confusion Matrix"
+                    fill
+                    className="object-contain"
+                    onLoad={() => console.log('✅ Confusion matrix loaded successfully')}
+                    onError={() => console.error('❌ Confusion matrix failed to load')}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 } 

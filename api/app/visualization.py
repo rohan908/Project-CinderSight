@@ -1,4 +1,4 @@
- import os
+import os
 import sys
 import shutil
 import zipfile
@@ -158,8 +158,8 @@ class VisualizationAPI:
             
             # Update task status
             active_tasks[task_id]["response"].status = "completed"
-            active_tasks[task_id]["response"].output_directory = str(output_dir)
-            active_tasks[task_id]["response"].files_generated = self.get_generated_files(output_dir)
+            active_tasks[task_id]["response"].output_directory = str(result["output_dir"])
+            active_tasks[task_id]["response"].files_generated = self.get_generated_files(Path(result["output_dir"]))
             active_tasks[task_id]["response"].metrics = result["metrics"]
             active_tasks[task_id]["completed"] = True
             
