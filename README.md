@@ -23,11 +23,11 @@ Due to the unfortunate lack of sequential data provided in the NDWS dataset, the
 
 ## Results
 
-F1 Score -	0.425
-Intersection over Union - 0.270
-Precision - 0.312
-Recall - 0.669
-Inference Speed - 51.0ms
+- F1 Score:	0.425
+- Intersection over Union: 0.270
+- Precision: 0.312
+- Recall: 0.669
+- Inference Speed: 51.0ms
 
 ## Folder Structure
 
