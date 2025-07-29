@@ -94,20 +94,32 @@ export default function Home() {
 
   const fetchSampleCount = async () => {
     try {
-      console.log('Fetching sample count...')
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      // Ensure API URL has proper protocol
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
+      console.log('🔗 API URL:', apiUrl)
+      console.log('📡 Fetching sample count from:', `${apiUrl}/samples/count`)
+      
       const response = await fetch(`${apiUrl}/samples/count`)
-      console.log('Sample count response status:', response.status)
+      console.log('📊 Sample count response status:', response.status)
+      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()))
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('❌ Response error text:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
       }
       
       const data = await response.json()
-      console.log('Sample count data:', data)
+      console.log('✅ Sample count data:', data)
       setAvailableSamples(data.total_samples)
     } catch (error) {
-      console.error('Error fetching sample count:', error)
+      console.error('❌ Error fetching sample count:', error)
       setError(`Failed to load sample count: ${error}`)
     }
   }
@@ -122,7 +134,13 @@ export default function Home() {
       setSelectedSample(randomIndex)
       
       // Generate visualizations for this sample
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
       const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
@@ -160,7 +178,12 @@ export default function Home() {
   const pollForCompletion = async (taskId: string) => {
     const maxAttempts = 60 // 5 minutes with 5-second intervals
     let attempts = 0
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    
+    // Add https:// if no protocol is specified
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = `https://${apiUrl}`
+    }
 
     while (attempts < maxAttempts) {
       try {
@@ -233,7 +256,13 @@ export default function Home() {
       setSelectedSample(sampleIdx)
       
       // Generate visualizations for this sample
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
       const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
