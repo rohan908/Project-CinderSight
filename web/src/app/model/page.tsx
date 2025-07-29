@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Layers, Cpu, Clock, Zap, Grid, ArrowBigRightDash, ZoomIn, MapPinned } from 'lucide-react';
+import { Layers, ArrowBigRightDash, ZoomIn, MapPinned } from 'lucide-react';
 import Image from 'next/image';
 import {
   Card,
@@ -27,7 +27,7 @@ export default function ModelPage() {
             To provide actionable insights to emergency responders and wildfire management services, we needed a robust model architecture to produce clear and precise wildfire spread predictions. Taking inspiration from other models, we first developed a spatiotemporal architecture that processed the 19 environmental covariates from the enriched NDWS dataset, leveraging CNNs for spatial feature extraction, and Transformers and ConvLSTMs to capture temporal dynamics. But due to insufficient sequential data in the enriched NDWS dataset, the temporal components of the architecture were dropped after primary experimentation.
           </p>
           <p className="mb-6">
-          The final model employs two components, the <strong>CNNModel</strong> that extracts spatial features and the <strong>NextFramePredictor</strong> that predicts the next day's wildfire spread map from the extracted spatial features.
+          The final model employs two components, the <strong>CNNModel</strong> that extracts spatial features and the <strong>NextFramePredictor</strong> that predicts the next day&apos;s wildfire spread map from the extracted spatial features.
           </p>
         </div>
 
