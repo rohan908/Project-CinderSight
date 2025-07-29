@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { Info, TrendingUp, Cpu, Eye } from 'lucide-react';
 import {
   Card,
@@ -21,13 +22,35 @@ export default function AboutPage() {
             CinderSight: Wildfire Prediction with AI
           </h1>
         </div>
-        <p className="text-lg text-gray-600 max-w-6xl mx-auto leading-relaxed">
-          CinderSight is a state-of-the-art wildfire spread prediction system that leverages advanced deep learning techniques to enhance wildfire management strategies. With wildfires increasingly threatening ecosystems, infrastructure, and human lives, precise and timely predictions are crucial for effective response and mitigation.
-          Our goal is to empower wildfire management agencies, environmental organizations, and emergency responders with an interpretable, highly accurate prediction model, aiming to improve preparedness, help optimize resource allocation, and reduce environmental and economic damage.
+        <p className="text-xl text-gray-600 max-w-6xl mx-auto leading-relaxed">
+          Wildfires result in the emission of nearly 3.3 billion tonnes of CO2 annually and cost the U.S. economy an estimated $70 billion. With a steady increase in wildfires worldwide, emergency responders and wildfire management agencies face significant challenges in allocating resources to mitigate environmental and economic damage. CinderSight is a state-of-the-art wildfire spread prediction system that enhances wildfire management strategies by leveraging advanced deep learning techniques. We aim to deliver precise and timely predictions on wildfire movement to aid in effective response and mitigation. Through CinderSight, we hope to empower emergency responders and wildfire management agencies to mitigate the threat to our ecosystems, infrastructure, and lives.
+        </p>
+        <p className="mt-4 text-lg text-gray-600 max-w-4xl mx-auto">
+          Explore our site for an in-depth look at what powers our model!
         </p>
       </div>
 
-      <Card className="mb-8">
+    <Card className="mt-8 mx-auto max-w-xl">
+        <CardHeader className = "text-center">
+          <CardTitle>Wildfire Risk</CardTitle>
+          <CardDescription>
+            Forest Service - U.S. Department of Agriculture
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="max-w-full mx-auto relative">
+              <Image
+                src="/images/wrc-risk.png"
+                alt="Map of fire risk"
+                width={500}
+                height={100}
+                className="object-contain rounded-md border mx-auto"
+              />
+            </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mb-12 mt-10">
         <CardHeader>
           <CardTitle>Project Objectives</CardTitle>
           <CardDescription>
