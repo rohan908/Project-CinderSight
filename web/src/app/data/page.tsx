@@ -27,12 +27,14 @@ export default function DataPage() {
           </h1>
         </div>
         <p className="text-xl text-gray-600 max-w-6xl mx-auto">
-          The CinderSight project utilizes an enriched version of the Next Day
-          Wildfire Spread (NDWS) dataset, tailored specifically for wildfire
-          spread modeling across the contiguous United States from July 2015 to
-          October 2024. This dataset integrates 19 key environmental factors including
-          weather and geographical features, providing great detail
-          for wildfire prediction.
+          The CinderSight project utilises an enriched version of the Next Day Wildfire Spread (NDWS) dataset.
+        </p>
+        <p className="text-xl text-gray-600 max-w-6xl mx-auto">
+          The NDWS dataset is a curated, large-scale multivariate dataset of historical wildfires over nearly a decade, from across the United States. It combines 2D fire data with other explanatory variables aligned over 2D regions.
+        </p>
+        <p className="text-xl text-gray-600 max-w-6xl mx-auto">
+          The enriched dataset uses next-day weather forecasts and terrain features to enhance the NDWS dataset. This enriched dataset
+          spans from July 2015 to October 2024, incorporating forecast variables such as temperature, wind speed, wind direction, precipitation, slope, and aspect to complement existing elevation data, providing substantial detail for wildfire spread modelling, even while lacking temporal data from sequential burning days.
         </p>
         <p className="mt-4 text-lg text-gray-600 max-w-4xl mx-auto">
           Download the full enriched NDWS dataset{' '}
