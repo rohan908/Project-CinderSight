@@ -28,7 +28,7 @@ class FlameAIModel(nn.Module):
         
         # Final prediction layer
         self.final_conv = nn.Conv2d(embed_dim, 1, kernel_size=1)
-        
+
     def forward(self, x):
         # Input shape: (batch, height, width, channels)
         # Convert to (batch, channels, height, width)

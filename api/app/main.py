@@ -99,10 +99,18 @@ async def root():
 
 @app.get("/health")
 async def health_check():
+    # Test numpy import
+    try:
+        import numpy as np
+        numpy_status = "ok"
+    except ImportError as e:
+        numpy_status = f"error: {str(e)}"
+    
     return {
         "status": "healthy",
         "data_loaded": data_loaded,
-        "available_samples": available_samples
+        "available_samples": available_samples,
+        "numpy": numpy_status
     }
 
 @app.get("/samples/count")
