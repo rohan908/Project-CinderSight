@@ -7,8 +7,7 @@ import sys
 import os
 from pathlib import Path
 
-# Add model directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
+# No need to add model directory path in Railway deployment
 
 # Import visualization API and Supabase client
 from .visualization import visualization_api, VisualizationRequest

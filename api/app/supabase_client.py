@@ -20,7 +20,11 @@ class SupabaseManager:
         self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
         
         if not self.supabase_url or not self.supabase_key:
-            raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in environment variables")
+            logger.warning("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY not set. Supabase features will be disabled.")
+            self.client = None
+            self.temp_dir = Path(tempfile.gettempdir()) / "cindersight"
+            self.temp_dir.mkdir(exist_ok=True)
+            return
         
         self.client: Client = create_client(self.supabase_url, self.supabase_key)
         self.temp_dir = Path(tempfile.gettempdir()) / "cindersight"
@@ -84,6 +88,10 @@ class SupabaseManager:
     
     def get_model_paths(self) -> Dict[str, str]:
         """Get model file paths from Supabase table"""
+        if self.client is None:
+            logger.warning("Supabase client not initialized. Cannot get model paths.")
+            return {}
+            
         try:
             # Query the models table to get bucket links
             response = self.client.table('models').select('*').execute()
@@ -107,6 +115,10 @@ class SupabaseManager:
     
     def get_data_paths(self) -> Dict[str, str]:
         """Get data file paths from Supabase table"""
+        if self.client is None:
+            logger.warning("Supabase client not initialized. Cannot get data paths.")
+            return {}
+            
         try:
             # Query the samples table to get bucket links
             response = self.client.table('samples').select('*').execute()

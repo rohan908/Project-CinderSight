@@ -11,15 +11,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import asyncio
 
-# Add model directory to path to import modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
+# No need to add model directory path in Railway deployment
 
 # Import Supabase client and environment config
 from .supabase_client import get_supabase_manager
 from .env_config import EnvConfig
 
 try:
-    from testing.generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample
+    # Import from the local generate_sample_visualizations module
+    from .generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample, generate_single_sample_with_data
 except ImportError as e:
     print(f"Warning: Could not import visualization modules: {e}")
     # Create dummy classes for when modules are not available
@@ -28,6 +28,9 @@ except ImportError as e:
             pass
     
     def generate_single_sample(*args, **kwargs):
+        return None
+    
+    def generate_single_sample_with_data(*args, **kwargs):
         return None
 
 # Global configuration
@@ -163,11 +166,12 @@ class VisualizationAPI:
             with open(temp_data_dir / f"{EnvConfig.DEFAULT_DATA_SPLIT}.labels", 'wb') as f:
                 pickle.dump(targets, f)
             
-            # Generate visualizations
-            result = generate_single_sample(
+            # Generate visualizations with loaded data
+            result = generate_single_sample_with_data(
                 request.sample_idx, 
                 generator, 
-                str(temp_data_dir), 
+                features, 
+                targets,
                 str(output_dir)
             )
             
