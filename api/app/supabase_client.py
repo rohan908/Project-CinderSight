@@ -131,16 +131,14 @@ class SupabaseManager:
                 # Get features file path
                 features_file_path = sample.get('features_file_path', '')
                 if features_file_path:
-                    # Extract the split name from the path (e.g., "test.data" -> "test")
-                    split_name = features_file_path.split('.')[0] if '.' in features_file_path else 'unknown'
-                    data_paths[f"{split_name}.data"] = features_file_path
+                    # Map to expected filename format
+                    data_paths["test.data"] = features_file_path
                 
                 # Get target file path
                 target_file_path = sample.get('target_file_path', '')
                 if target_file_path:
-                    # Extract the split name from the path (e.g., "test.labels" -> "test")
-                    split_name = target_file_path.split('.')[0] if '.' in target_file_path else 'unknown'
-                    data_paths[f"{split_name}.labels"] = target_file_path
+                    # Map to expected filename format
+                    data_paths["test.labels"] = target_file_path
             
             logger.info(f"Retrieved {len(data_paths)} data paths from database")
             return data_paths
