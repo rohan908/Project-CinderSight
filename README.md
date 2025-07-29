@@ -19,7 +19,7 @@ The dataset we used to train and evaluate the model is the [(Enhanced & modified
 
 Due to the unfortunate lack of sequential data provided in the NDWS dataset, the temporal pieces of the architecture had to be removed or altered. Here is a diagram of the modified architecture, without the transformer and encoder blocks:
 
-![alt text](https://github.com/rohan908/Project-CinderSight/tree/main/images/model_diagram.png "Model Diagram")
+![Model Diagram](images/model_diagram.png)
 
 ## Results
 
