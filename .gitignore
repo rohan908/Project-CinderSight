@@ -159,4 +159,7 @@ dmypy.json
 
 # model/data/
 model/data/
-model/visualizations/
+model/visualizations/*.png
+# allow Next.js public folder
+!web/public/
+!web/public/**
