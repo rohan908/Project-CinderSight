@@ -1,16 +1,35 @@
 # CinderSight - Canadian Fire Prediction
 
-Advanced wildfire prediction platform powered by the Canadian Fire Database and AI.
+Advanced wildfire prediction powered by neural networks.
 
-## Features
+## Background
 
-- **Interactive Map Interface**: Select locations across Canada for fire risk assessment
-- **Modern UI with ShadCN**: Beautiful, accessible components built with ShadCN UI
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
-- **Real-time Predictions**: Get instant fire risk assessments for any location
-- **Risk Assessment**: Multi-level risk classification (Low, Medium, High, Extreme)
+Between 2018 and 2023, 7.7 million acres of U.S. land burned as a result of wildfires [[1]](#1), costing $70 billion annually [[2]](#2) and emitting 3.3 billion tons of CO2 every year [[3]](#3).
 
-## Architecture
+## Research Question
+
+In this project, we wanted to see if we could take a successful fire-spread prediction model and apply it to a dataset with more covariates to improve its results.
+The model used comes from the [2nd place submission](https://www.kaggle.com/competitions/2024-flame-ai-challenge/discussion/541458) to the [2024 FLAME AI Challenge](https://www.kaggle.com/competitions/2024-flame-ai-challenge/overview).
+
+## Dataset
+
+The dataset we used to train and evaluate the model is the [(Enhanced & modified) Next Day Wildfire Spread Dataset](https://www.kaggle.com/datasets/rufaiyusufzakari/enhanced-and-modified-next-day-wildfire-spread?select=next_day_wildfire_spread_eval_00.tfrecord). It contains 19 features interpolated to a resolution of 1 km, including current weather, weather forecast, terrain, land, and population variables. This marks a significant increase from the dataset used in the 2024 FLAME AI Challenge, which includes only 4 features. However, the NDWS dataset has the disadvantage of lacking multiple sequential days of data, unlike the challenge dataset.
+
+## Model Architecture
+
+Due to the unfortunate lack of sequential data provided in the NDWS dataset, the temporal pieces of the architecture had to be removed or altered. Here is a diagram of the modified architecture, without the transformer and encoder blocks:
+
+![alt text](https://github.com/rohan908/Project-CinderSight/main/images/model_diagram.png "Model Diagram")
+
+## Results
+
+F1 Score -	0.425
+Intersection over Union - 0.270
+Precision - 0.312
+Recall - 0.669
+Inference Speed - 51.0ms
+
+## Folder Structure
 
 ```
 Project-CinderSight/
@@ -296,11 +315,13 @@ The application is containerized and ready for deployment on:
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Acknowledgments
+## References
 
-- **Canadian Forest Service** for fire data
-- **Natural Resources Canada** for environmental data
-- **OpenStreetMap** for map tiles
-- **ShadCN** for beautiful UI components
+<a id="1">[1]</a> 
+National Interagency Fire Center
 
-**CinderSight** - Predicting wildfires, protecting communities. 🇨🇦 
+<a id="2">[2]</a> 
+NOAA
+
+<a id="3">[3]</a> 
+Global Fire Emissions Database
