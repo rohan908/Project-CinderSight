@@ -10,8 +10,10 @@ from pathlib import Path
 # Add model directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
 
-# Import visualization API
+# Import visualization API and Supabase client
 from .visualization import visualization_api, VisualizationRequest
+from .supabase_client import get_supabase_manager
+from .env_config import EnvConfig
 
 # Global variables for data
 available_samples = 0
@@ -26,7 +28,7 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=EnvConfig.get_allowed_origins_list(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,25 +42,42 @@ class PredictRequest(BaseModel):
 async def startup_event():
     """Load data on server startup"""
     global available_samples, data_loaded
+    
+    # Print configuration
+    EnvConfig.print_config()
+    
+    # Validate Supabase configuration
+    if not EnvConfig.validate_supabase_config():
+        print("❌ Supabase configuration is incomplete. Please set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY")
+        available_samples = 0
+        data_loaded = False
+        return
+    
     try:
-        # Import here to avoid circular imports
-        from train import load_ndws_data
+        # Initialize Supabase manager
+        supabase_manager = get_supabase_manager()
         
-        # Try to load test data first, fallback to train
+        # Load data from Supabase
         try:
-            features, targets = load_ndws_data("../model/data/processed", "test")
-        except:
-            features, targets = load_ndws_data("../model/data/processed", "train")
+            features, targets = supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
+        except Exception as e:
+            print(f"⚠️ Could not load {EnvConfig.DEFAULT_DATA_SPLIT} data from Supabase: {e}")
+            # Fallback to train data
+            try:
+                features, targets = supabase_manager.load_ndws_data_from_supabase("train")
+            except Exception as e2:
+                print(f"⚠️ Could not load train data from Supabase: {e2}")
+                features, targets = None, None
         
         if features is not None and targets is not None:
             available_samples = len(features)
             data_loaded = True
-            print(f"✅ Data loaded successfully! Available samples: {available_samples}")
+            print(f"✅ Data loaded successfully from Supabase! Available samples: {available_samples}")
         else:
-            print("⚠️ Could not load data")
+            print("⚠️ Could not load data from Supabase")
             
     except Exception as e:
-        print(f"❌ Error loading data: {e}")
+        print(f"❌ Error initializing Supabase or loading data: {e}")
         available_samples = 0
         data_loaded = False
 

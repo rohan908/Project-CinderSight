@@ -37,6 +37,7 @@ Project-CinderSight/
 - Docker and Docker Compose
 - Node.js 18+ (for local development)
 - Python 3.11+ (for local development)
+- Supabase project with storage buckets configured (see [Supabase Setup](#supabase-setup))
 
 ### 1. Clone and Setup
 
@@ -51,9 +52,11 @@ cd Project-CinderSight
 # Copy environment template
 cp env.example .env
 
-# Edit .env with your configuration (optional for now)
+# Edit .env with your configuration
 nano .env
 ```
+
+**Important**: You must configure Supabase environment variables for the API to work. See the [Supabase Setup](#supabase-setup) section below.
 
 ### 3. Run with Docker Compose
 
@@ -276,6 +279,91 @@ The application is containerized and ready for deployment on:
 - **AWS ECS**
 - **Google Cloud Run**
 - **Azure Container Instances**
+
+## Supabase Setup
+
+The API requires Supabase integration to fetch models and data from cloud storage. Follow these steps to set up Supabase:
+
+### 1. Create Supabase Project
+
+1. Go to [supabase.com](https://supabase.com) and create a new project
+2. Note your project URL and service role key
+
+### 2. Configure Environment Variables
+
+Create a `.env` file in the `api/` directory:
+
+```env
+# Supabase Configuration
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8000
+DEBUG=True
+
+# CORS Configuration
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+
+# Model and Data Configuration
+DEFAULT_MODEL_NAME=model_nfp.pth
+DEFAULT_DATA_SPLIT=test
+```
+
+### 3. Set Up Storage Buckets
+
+1. Create two storage buckets in your Supabase project:
+   - `models` - for model files
+   - `data` - for data files
+
+2. Upload your files:
+   - **Models**: `model_nfp.pth` to the `models` bucket
+   - **Data**: `test.data`, `test.labels`, `train.data`, `train.labels` to the `data` bucket
+
+### 4. Create Database Tables
+
+Run these SQL commands in your Supabase SQL editor:
+
+```sql
+-- Models table
+CREATE TABLE models (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    model_path TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Samples table
+CREATE TABLE samples (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    features_file_path TEXT NOT NULL,
+    target_file_path TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Insert sample records (update URLs with your actual signed URLs)
+INSERT INTO models (name, model_path) VALUES 
+('model_nfp.pth', 'https://your-project.supabase.co/storage/v1/object/sign/models/model_nfp.pth?token=your-signed-token');
+
+INSERT INTO samples (name, features_file_path, target_file_path) VALUES 
+('test', 'https://your-project.supabase.co/storage/v1/object/sign/data/test.data?token=your-signed-token', 'https://your-project.supabase.co/storage/v1/object/sign/data/test.labels?token=your-signed-token'),
+('train', 'https://your-project.supabase.co/storage/v1/object/sign/data/train.data?token=your-signed-token', 'https://your-project.supabase.co/storage/v1/object/sign/data/train.labels?token=your-signed-token');
+```
+
+### 5. Test Integration
+
+Run the test script to verify your setup:
+
+```bash
+cd api
+python test_supabase.py
+```
+
+For detailed setup instructions, see [api/README_SUPABASE_SETUP.md](api/README_SUPABASE_SETUP.md).
 
 ## Next Steps
 

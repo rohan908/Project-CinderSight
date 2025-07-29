@@ -14,6 +14,10 @@ import asyncio
 # Add model directory to path to import modules
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
 
+# Import Supabase client and environment config
+from .supabase_client import get_supabase_manager
+from .env_config import EnvConfig
+
 try:
     from testing.generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample
 except ImportError as e:
@@ -27,8 +31,6 @@ except ImportError as e:
         return None
 
 # Global configuration
-BASE_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'data', 'processed')
-BASE_MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'models', 'model_nfp.pth')
 BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'visualizations')
 
 class VisualizationRequest(BaseModel):
@@ -56,26 +58,23 @@ class VisualizationAPI:
     """API for generating wildfire visualizations"""
     
     def __init__(self):
-        self.base_data_dir = BASE_DATA_DIR
-        self.base_model_path = BASE_MODEL_PATH
         self.base_output_dir = BASE_OUTPUT_DIR
+        self.supabase_manager = get_supabase_manager()
         
     def validate_paths(self):
-        """Validate that required paths exist"""
-        if not os.path.exists(self.base_data_dir):
+        """Validate that required paths exist and Supabase is accessible"""
+        try:
+            # Test Supabase connection by getting model paths
+            self.supabase_manager.get_model_paths()
+            
+            # Create output directory if it doesn't exist
+            os.makedirs(self.base_output_dir, exist_ok=True)
+            
+        except Exception as e:
             raise HTTPException(
                 status_code=500, 
-                detail=f"Data directory not found: {self.base_data_dir}"
+                detail=f"Supabase connection failed: {str(e)}"
             )
-        
-        if not os.path.exists(self.base_model_path):
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Model file not found: {self.base_model_path}"
-            )
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(self.base_output_dir, exist_ok=True)
     
     async def generate_visualizations(self, request: VisualizationRequest, background_tasks: BackgroundTasks):
         """Start visualization generation for a sample"""
@@ -130,8 +129,11 @@ class VisualizationAPI:
     async def process_visualization_task(self, task_id: str, request: VisualizationRequest):
         """Background task to process visualization generation"""
         try:
-            # Initialize generator
-            generator = SampleVisualizationGenerator(self.base_model_path)
+            # Download model from Supabase
+            model_path = self.supabase_manager.download_model(EnvConfig.DEFAULT_MODEL_NAME)
+            
+            # Initialize generator with downloaded model
+            generator = SampleVisualizationGenerator(str(model_path))
             
             # Determine output directory
             if request.save_images:
@@ -145,13 +147,33 @@ class VisualizationAPI:
                 # Use temporary directory
                 output_dir = Path(tempfile.mkdtemp())
             
+            # Load data from Supabase for visualization
+            features, targets = self.supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
+            if features is None or targets is None:
+                raise Exception("Could not load data from Supabase")
+            
+            # Create temporary data directory structure for the visualization function
+            temp_data_dir = Path(tempfile.mkdtemp()) / "processed"
+            temp_data_dir.mkdir(exist_ok=True)
+            
+            # Save data files in the expected format
+            import pickle
+            with open(temp_data_dir / f"{EnvConfig.DEFAULT_DATA_SPLIT}.data", 'wb') as f:
+                pickle.dump(features, f)
+            with open(temp_data_dir / f"{EnvConfig.DEFAULT_DATA_SPLIT}.labels", 'wb') as f:
+                pickle.dump(targets, f)
+            
             # Generate visualizations
             result = generate_single_sample(
                 request.sample_idx, 
                 generator, 
-                self.base_data_dir, 
+                str(temp_data_dir), 
                 str(output_dir)
             )
+            
+            # Clean up temporary data directory
+            import shutil
+            shutil.rmtree(temp_data_dir.parent)
             
             if result is None:
                 raise Exception(f"Failed to generate visualizations for sample {request.sample_idx}")
@@ -297,19 +319,17 @@ class VisualizationAPI:
     def get_available_samples(self):
         """Get information about available samples"""
         try:
-            # Try to load data to get sample count
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
-            from train import load_ndws_data
+            # Load data from Supabase to get sample count
+            features, targets = self.supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
             
-            try:
-                features, targets = load_ndws_data(self.base_data_dir, "test")
-            except:
-                features, targets = load_ndws_data(self.base_data_dir, "train")
+            if features is None or targets is None:
+                # Try train data as fallback
+                features, targets = self.supabase_manager.load_ndws_data_from_supabase("train")
             
             if features is None or targets is None:
                 return {
                     "total_samples": 0,
-                    "message": "No data available"
+                    "message": "No data available from Supabase"
                 }
             
             return {
@@ -322,7 +342,7 @@ class VisualizationAPI:
             return {
                 "total_samples": 0,
                 "error": str(e),
-                "message": "Could not determine available samples"
+                "message": "Could not determine available samples from Supabase"
             }
     
     def delete_task(self, task_id: str):
