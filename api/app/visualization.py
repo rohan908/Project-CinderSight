@@ -11,11 +11,15 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import asyncio
 
-# Add model directory to path to import modules
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
+# No need to add model directory path in Railway deployment
+
+# Import Supabase client and environment config
+from .supabase_client import get_supabase_manager
+from .env_config import EnvConfig
 
 try:
-    from testing.generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample
+    # Import from the local generate_sample_visualizations module
+    from .generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample, generate_single_sample_with_data
 except ImportError as e:
     print(f"Warning: Could not import visualization modules: {e}")
     # Create dummy classes for when modules are not available
@@ -25,11 +29,12 @@ except ImportError as e:
     
     def generate_single_sample(*args, **kwargs):
         return None
+    
+    def generate_single_sample_with_data(*args, **kwargs):
+        return None
 
-# Global configuration
-BASE_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'data', 'processed')
-BASE_MODEL_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'models', 'model_nfp.pth')
-BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'visualizations')
+# Global configuration - use Railway-compatible path
+BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'visualizations')
 
 class VisualizationRequest(BaseModel):
     sample_idx: int
@@ -56,41 +61,53 @@ class VisualizationAPI:
     """API for generating wildfire visualizations"""
     
     def __init__(self):
-        self.base_data_dir = BASE_DATA_DIR
-        self.base_model_path = BASE_MODEL_PATH
         self.base_output_dir = BASE_OUTPUT_DIR
+        self.supabase_manager = get_supabase_manager()
         
     def validate_paths(self):
-        """Validate that required paths exist"""
-        if not os.path.exists(self.base_data_dir):
+        """Validate that required paths exist and Supabase is accessible"""
+        try:
+            print(f"📁 Base output directory: {self.base_output_dir}")
+            print(f"📁 Current working directory: {os.getcwd()}")
+            
+            # Test Supabase connection by getting model paths
+            self.supabase_manager.get_model_paths()
+            
+            # Create output directory if it doesn't exist
+            print(f"📁 Creating output directory: {self.base_output_dir}")
+            os.makedirs(self.base_output_dir, exist_ok=True)
+            print(f"✅ Output directory created/verified")
+            
+        except Exception as e:
+            print(f"❌ Error in validate_paths: {str(e)}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Data directory not found: {self.base_data_dir}"
+                detail=f"Path validation failed: {str(e)}"
             )
-        
-        if not os.path.exists(self.base_model_path):
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Model file not found: {self.base_model_path}"
-            )
-        
-        # Create output directory if it doesn't exist
-        os.makedirs(self.base_output_dir, exist_ok=True)
     
     async def generate_visualizations(self, request: VisualizationRequest, background_tasks: BackgroundTasks):
         """Start visualization generation for a sample"""
+        print(f"🚀 Starting visualization request for sample {request.sample_idx}")
+        print(f"📋 Request data: {request.dict()}")
+        
         try:
             # Validate sample index
+            print(f"🔍 Validating sample index: {request.sample_idx}")
             if request.sample_idx < 0:
                 raise HTTPException(status_code=400, detail="Sample index must be non-negative")
+            print(f"✅ Sample index validation passed")
             
             # Validate paths
+            print(f"🔍 Validating paths and Supabase connection")
             self.validate_paths()
+            print(f"✅ Path validation successful")
             
             # Create unique task ID
             task_id = str(uuid.uuid4())
+            print(f"🆔 Created task ID: {task_id}")
             
             # Initialize response
+            print(f"📝 Initializing response object")
             response = VisualizationResponse(
                 sample_idx=request.sample_idx,
                 status="processing",
@@ -99,23 +116,28 @@ class VisualizationAPI:
                 files_generated=[],
                 metrics=None
             )
+            print(f"✅ Response object created")
             
             # Store task
+            print(f"💾 Storing task in active_tasks")
             active_tasks[task_id] = {
                 "response": response,
                 "request": request,
                 "completed": False,
                 "error": None
             }
+            print(f"✅ Task stored successfully")
             
             # Start background task
+            print(f"🔄 Adding background task")
             background_tasks.add_task(
                 self.process_visualization_task, 
                 task_id, 
                 request
             )
+            print(f"✅ Background task added")
             
-            return {
+            response_data = {
                 "task_id": task_id,
                 "sample_idx": request.sample_idx,
                 "status": "processing",
@@ -123,15 +145,29 @@ class VisualizationAPI:
                 "check_status_url": f"/visualization/status/{task_id}",
                 "download_url": f"/visualization/download/{task_id}"
             }
+            print(f"✅ Returning response: {response_data}")
+            return response_data
             
         except Exception as e:
+            print(f"❌ Error in generate_visualizations: {str(e)}")
+            import traceback
+            print(f"📋 Full traceback: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Error starting visualization: {str(e)}")
     
     async def process_visualization_task(self, task_id: str, request: VisualizationRequest):
         """Background task to process visualization generation"""
         try:
-            # Initialize generator
-            generator = SampleVisualizationGenerator(self.base_model_path)
+            print(f"🔄 Starting visualization task {task_id} for sample {request.sample_idx}")
+            
+            # Download model from Supabase
+            print(f"📥 Downloading model: {EnvConfig.DEFAULT_MODEL_NAME}")
+            model_path = self.supabase_manager.download_model(EnvConfig.DEFAULT_MODEL_NAME)
+            print(f"✅ Model downloaded to: {model_path}")
+            
+            # Initialize generator with downloaded model
+            print(f"🔧 Initializing visualization generator")
+            generator = SampleVisualizationGenerator(str(model_path))
+            print(f"✅ Generator initialized")
             
             # Determine output directory
             if request.save_images:
@@ -145,13 +181,38 @@ class VisualizationAPI:
                 # Use temporary directory
                 output_dir = Path(tempfile.mkdtemp())
             
-            # Generate visualizations
-            result = generate_single_sample(
+            # Load data from Supabase for visualization
+            print(f"📊 Loading data from Supabase for split: {EnvConfig.DEFAULT_DATA_SPLIT}")
+            features, targets = self.supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
+            if features is None or targets is None:
+                raise Exception("Could not load data from Supabase")
+            print(f"✅ Data loaded - features shape: {features.shape}, targets shape: {targets.shape}")
+            
+            # Create temporary data directory structure for the visualization function
+            temp_data_dir = Path(tempfile.mkdtemp()) / "processed"
+            temp_data_dir.mkdir(exist_ok=True)
+            
+            # Save data files in the expected format
+            import pickle
+            with open(temp_data_dir / f"{EnvConfig.DEFAULT_DATA_SPLIT}.data", 'wb') as f:
+                pickle.dump(features, f)
+            with open(temp_data_dir / f"{EnvConfig.DEFAULT_DATA_SPLIT}.labels", 'wb') as f:
+                pickle.dump(targets, f)
+            
+            # Generate visualizations with loaded data
+            print(f"🎨 Generating visualizations for sample {request.sample_idx}")
+            result = generate_single_sample_with_data(
                 request.sample_idx, 
                 generator, 
-                self.base_data_dir, 
+                features, 
+                targets,
                 str(output_dir)
             )
+            print(f"✅ Visualization generation completed")
+            
+            # Clean up temporary data directory
+            import shutil
+            shutil.rmtree(temp_data_dir.parent)
             
             if result is None:
                 raise Exception(f"Failed to generate visualizations for sample {request.sample_idx}")
@@ -164,6 +225,9 @@ class VisualizationAPI:
             active_tasks[task_id]["completed"] = True
             
         except Exception as e:
+            print(f"❌ Error in visualization task {task_id}: {str(e)}")
+            import traceback
+            print(f"📋 Full traceback: {traceback.format_exc()}")
             active_tasks[task_id]["response"].status = "failed"
             active_tasks[task_id]["response"].error_message = str(e)
             active_tasks[task_id]["error"] = str(e)
@@ -297,19 +361,17 @@ class VisualizationAPI:
     def get_available_samples(self):
         """Get information about available samples"""
         try:
-            # Try to load data to get sample count
-            sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'model'))
-            from train import load_ndws_data
+            # Load data from Supabase to get sample count
+            features, targets = self.supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
             
-            try:
-                features, targets = load_ndws_data(self.base_data_dir, "test")
-            except:
-                features, targets = load_ndws_data(self.base_data_dir, "train")
+            if features is None or targets is None:
+                # Try train data as fallback
+                features, targets = self.supabase_manager.load_ndws_data_from_supabase("train")
             
             if features is None or targets is None:
                 return {
                     "total_samples": 0,
-                    "message": "No data available"
+                    "message": "No data available from Supabase"
                 }
             
             return {
@@ -322,7 +384,7 @@ class VisualizationAPI:
             return {
                 "total_samples": 0,
                 "error": str(e),
-                "message": "Could not determine available samples"
+                "message": "Could not determine available samples from Supabase"
             }
     
     def delete_task(self, task_id: str):

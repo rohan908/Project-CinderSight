@@ -58,7 +58,7 @@ import requests
 import time
 
 # Initialize client
-base_url = "http://localhost:8000"
+base_url = "http://localhost:8080"
 
 # 1. Check available samples
 response = requests.get(f"{base_url}/visualization/samples/available")
@@ -105,18 +105,18 @@ with open("metrics.json", "wb") as f:
 
 ```bash
 # Generate visualizations for sample 0
-curl -X POST "http://localhost:8000/visualization/generate" \
+curl -X POST "http://localhost:8080/visualization/generate" \
   -H "Content-Type: application/json" \
   -d '{"sample_idx": 0, "save_images": false}'
 
 # Check task status
-curl "http://localhost:8000/visualization/status/{task_id}"
+curl "http://localhost:8080/visualization/status/{task_id}"
 
 # Download all visualizations
-curl "http://localhost:8000/visualization/download/{task_id}" -o visualizations.zip
+curl "http://localhost:8080/visualization/download/{task_id}" -o visualizations.zip
 
 # Download only metrics
-curl "http://localhost:8000/visualization/download/{task_id}/metrics" -o metrics.json
+curl "http://localhost:8080/visualization/download/{task_id}/metrics" -o metrics.json
 ```
 
 ## Storage Options
@@ -201,8 +201,8 @@ uvicorn app.main:app --reload
 ```
 
 4. Access the API documentation:
-   - Swagger UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
+   - Swagger UI: http://localhost:8080/docs
+   - ReDoc: http://localhost:8080/redoc
 
 ## Testing
 

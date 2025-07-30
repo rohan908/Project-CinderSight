@@ -9,74 +9,27 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from scipy.ndimage import zoom
 
-# Allow modules to be imported from /model
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Import config from the local config module
+from .config import ENHANCED_INPUT_FEATURES, DEFAULT_DATA_SIZE, FEATURE_DESCRIPTIONS, FEATURE_CATEGORIES
 
-from config import ENHANCED_INPUT_FEATURES, DEFAULT_DATA_SIZE
 
-# Feature descriptions and units from the enhanced dataset paper
-FEATURE_DESCRIPTIONS = {
-    'vs': 'Wind Speed (m/s)',
-    'pr': 'Precipitation (mm/day)',
-    'sph': 'Specific Humidity (kg/kg)',
-    'tmmx': 'Maximum Temperature (°C)',
-    'tmmn': 'Minimum Temperature (°C)',
-    'th': 'Wind Direction (degrees)',
-    'erc': 'Energy Release Component (unitless)',
-    'pdsi': 'Palmer Drought Severity Index (unitless)',
-    'ftemp': 'Forecast Temperature (°C)',
-    'fpr': 'Forecast Precipitation (mm/day)',
-    'fws': 'Forecast Wind Speed (m/s)',
-    'fwd': 'Forecast Wind Direction (degrees)',
-    'elevation': 'Elevation (meters)',
-    'aspect': 'Aspect (degrees)',
-    'slope': 'Slope (degrees)',
-    'ndvi': 'Normalized Difference Vegetation Index (unitless)',
-    'evi': 'Enhanced Vegetation Index (unitless)',
-    'population': 'Population Density (people/km²)',
-    'prevfiremask': 'Previous Day Fire Mask (binary)'
-}
-
-# Feature categories for better organization
-FEATURE_CATEGORIES = {
-    'weather_current': {
-        'features': ['vs', 'pr', 'sph', 'tmmx', 'tmmn', 'th', 'erc', 'pdsi'],
-        'description': 'Current Day Weather Factors',
-        'colormap': 'viridis'
-    },
-    'weather_forecast': {
-        'features': ['ftemp', 'fpr', 'fws', 'fwd'],
-        'description': 'Next Day Weather Forecast',
-        'colormap': 'plasma'
-    },
-    'terrain': {
-        'features': ['elevation', 'aspect', 'slope'],
-        'description': 'Terrain Factors',
-        'colormap': 'terrain'
-    },
-    'vegetation': {
-        'features': ['ndvi', 'evi'],
-        'description': 'Vegetation Indices',
-        'colormap': 'Greens'
-    },
-    'human': {
-        'features': ['population'],
-        'description': 'Human Factors',
-        'colormap': 'Blues'
-    },
-    'fire': {
-        'features': ['prevfiremask'],
-        'description': 'Fire History',
-        'colormap': 'Reds'
-    }
-}
-from models import FlameAIModel
-from train import load_ndws_data, calculate_segmentation_metrics
+# Import models and train functions from the local modules
+try:
+    from .models import FlameAIModel
+    from .train import calculate_segmentation_metrics
+except ImportError:
+    # Create dummy classes if modules are not available
+    class FlameAIModel:
+        def __init__(self, *args, **kwargs):
+            pass
+    
+    def calculate_segmentation_metrics(*args, **kwargs):
+        return {}
 
 class SampleVisualizationGenerator:
     """Generate comprehensive visualizations for individual test samples"""
     
-    def __init__(self, model_path="../models/model_nfp.pth", device='cuda' if torch.cuda.is_available() else 'cpu'):
+    def __init__(self, model_path="model_nfp.pth", device='cuda' if torch.cuda.is_available() else 'cpu'):
         self.device = torch.device(device)
         self.model_path = model_path
         self.model = None
@@ -116,47 +69,24 @@ class SampleVisualizationGenerator:
         print(f"Model parameters: {sum(p.numel() for p in self.model.parameters()):,}")
         print(f"Expected input shape: {self.model_config.get('crop_size', 32)}x{self.model_config.get('crop_size', 32)}x{self.model_config.get('num_features', 19 * 9)}")
         
-    def load_test_sample(self, sample_idx: int, data_dir="../data/processed"):
+    def load_test_sample(self, sample_idx: int, data_dir="data/processed"):
         """Load a specific test sample and preprocess it for the model"""
         print(f"Loading test sample {sample_idx}...")
         
-        # Try to load test data, fallback to train if test doesn't exist
-        try:
-            features, targets = load_ndws_data(data_dir, "test")
-        except:
-            print("Could not load test data, using train data instead")
-            features, targets = load_ndws_data(data_dir, "train")
-        
-        if features is None or targets is None:
-            raise ValueError("Could not load data for visualization")
-        
-        if sample_idx >= len(features):
-            raise ValueError(f"Sample index {sample_idx} out of range. Available samples: {len(features)}")
-            
-        sample_features = features[sample_idx]
-        sample_target = targets[sample_idx]
-        
-        print(f"Loaded sample {sample_idx}")
-        print(f"  Original features shape: {sample_features.shape}") 
-        print(f"  Original target shape: {sample_target.shape}")
-        
-        # Store original for visualization
-        self.original_features = sample_features.copy()
-        self.original_target = sample_target.copy()
-        
-        # Preprocess for model inference (create a workaround for the dimension mismatch)
-        processed_features = self._preprocess_for_model(sample_features)
-        processed_target = self._preprocess_target_for_model(sample_target)
-        
-        print(f"  Processed features shape: {processed_features.shape}")
-        print(f"  Processed target shape: {processed_target.shape}")
-        
-        return processed_features, processed_target
+        # This method is not used in Railway deployment
+        # Data is loaded via Supabase and passed directly to generate_single_sample_with_data
+        raise NotImplementedError("This method is not used in Railway deployment. Use generate_single_sample_with_data instead.")
     
     def _preprocess_for_model(self, features):
         """Preprocess features to match model expectations"""
         crop_size = self.model_config.get('crop_size', 32)
         expected_features = self.model_config.get('num_features', 171)
+        
+        # Handle different input shapes
+        if features.shape[0] < features.shape[1]:  # (19, 64, 64) format
+            # Transpose to (64, 64, 19) format
+            features = features.transpose(1, 2, 0)
+            print(f"  Transposed from (19, 64, 64) to (64, 64, 19)")
         
         # Crop to the expected size (center crop)
         h, w, c = features.shape
@@ -164,7 +94,7 @@ class SampleVisualizationGenerator:
         start_w = (w - crop_size) // 2
         cropped = features[start_h:start_h+crop_size, start_w:start_w+crop_size, :]
         
-        print(f"  Cropped from {h}x{w} to {crop_size}x{crop_size}")
+        print(f"  Cropped from {h}x{w}x{c} to {crop_size}x{crop_size}x{c}")
         
         # Handle the feature dimension mismatch
         if expected_features > c:
@@ -177,15 +107,17 @@ class SampleVisualizationGenerator:
             # Expand features by repeating them in a structured way
             expanded = np.zeros((crop_size, crop_size, expected_features))
             
-            # Repeat the original 19 features multiple times
+            # Repeat the original features multiple times
             repeats = expected_features // c
             remainder = expected_features % c
             
             for i in range(repeats):
                 expanded[:, :, i*c:(i+1)*c] = cropped
             if remainder > 0:
+                # Fix: properly handle the remainder by taking the first 'remainder' features
                 expanded[:, :, repeats*c:repeats*c+remainder] = cropped[:, :, :remainder]
                 
+            print(f"  Expanded to {crop_size}x{crop_size}x{expected_features}")
             return expanded
         else:
             return cropped[:, :, :expected_features]
@@ -194,15 +126,26 @@ class SampleVisualizationGenerator:
         """Preprocess target to match model expectations"""
         crop_size = self.model_config.get('crop_size', 32)
         
+        # Handle different input shapes
+        if len(target.shape) == 2:  # (64, 64) format
+            # Add channel dimension
+            target = target[:, :, np.newaxis]
+            print(f"  Added channel dimension to target: {target.shape}")
+        elif target.shape[0] < target.shape[1]:  # (1, 64, 64) format
+            # Transpose to (64, 64, 1) format
+            target = target.transpose(1, 2, 0)
+            print(f"  Transposed target from (1, 64, 64) to (64, 64, 1)")
+        
         # Crop to the expected size (center crop)
         h, w, c = target.shape
         start_h = (h - crop_size) // 2
         start_w = (w - crop_size) // 2
         cropped = target[start_h:start_h+crop_size, start_w:start_w+crop_size, :]
         
+        print(f"  Target cropped from {h}x{w}x{c} to {crop_size}x{crop_size}x{c}")
         return cropped
     
-    def create_sample_directory(self, sample_idx: int, base_dir="../visualizations"):
+    def create_sample_directory(self, sample_idx: int, base_dir="visualizations"):
         """Create directory structure for sample visualizations"""
         sample_dir = Path(base_dir) / f"sample_{sample_idx}" / "visualizations"
         sample_dir.mkdir(parents=True, exist_ok=True)
@@ -224,8 +167,13 @@ class SampleVisualizationGenerator:
         """Generate separate visualization for each input feature using original data"""
         print("Generating individual feature visualizations...")
         
-        # Use original features for visualization (64x64 with 19 features)
+        # Use original features for visualization - handle different formats
         viz_features = self.original_features
+        
+        # Ensure features are in (64, 64, 19) format for visualization
+        if viz_features.shape[0] < viz_features.shape[1]:  # (19, 64, 64)
+            viz_features = viz_features.transpose(1, 2, 0)  # -> (64, 64, 19)
+            print(f"  Transposed features for visualization: {viz_features.shape}")
         
         generated_files = []
         
@@ -289,8 +237,21 @@ class SampleVisualizationGenerator:
         print("Generating fire progression visualizations...")
         
         # Use original data for visualization (64x64)
-        orig_prev_fire = self.original_features[:, :, -1]  # Last feature is PrevFireMask
-        orig_ground_truth = self.original_target[:, :, 0]
+        # Ensure features are in (64, 64, 19) format for visualization
+        if self.original_features.shape[0] < self.original_features.shape[1]:  # (19, 64, 64)
+            orig_features = self.original_features.transpose(1, 2, 0)  # -> (64, 64, 19)
+            orig_prev_fire = orig_features[:, :, -1]  # Last feature is PrevFireMask
+        else:  # (64, 64, 19)
+            orig_prev_fire = self.original_features[:, :, -1]
+            
+        # Ensure target is in (64, 64) format for visualization
+        if len(self.original_target.shape) == 2:  # (64, 64)
+            orig_ground_truth = self.original_target
+        else:  # (64, 64, 1) or (1, 64, 64)
+            if self.original_target.shape[0] < self.original_target.shape[1]:  # (1, 64, 64)
+                orig_ground_truth = self.original_target[0, :, :]
+            else:  # (64, 64, 1)
+                orig_ground_truth = self.original_target[:, :, 0]
         
         # Use prediction results (32x32) - resize for comparison
         pred_probability = prediction[:, :, 0]
@@ -566,7 +527,7 @@ Dice Weight: {self.model_config.get('dice_weight', 'N/A')}"""
         return metrics_file_path, doc_file_path
 
 def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenerator, 
-                          data_dir: str, base_output_dir: str = "../visualizations"):
+                          data_dir: str, base_output_dir: str = "visualizations"):
     """Generate visualizations for a single sample"""
     try:
         # Load test sample
@@ -577,6 +538,57 @@ def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenera
         
         # Generate prediction
         prediction = generator.predict_sample(features)
+        
+        # Generate all visualizations
+        feature_files = generator.generate_individual_feature_visualizations(features, output_dir)
+        fire_files = generator.generate_fire_progression_visualization(
+            features, target, prediction, output_dir)
+        metrics_files, metrics = generator.generate_metrics_dashboard(prediction, target, output_dir)
+        metrics_file_path, doc_file_path = generator.generate_sample_summary(
+            sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
+        
+        return {
+            'sample_idx': sample_idx,
+            'output_dir': output_dir,
+            'metrics': metrics,
+            'files_generated': len(feature_files) + len(fire_files) + 2
+        }
+        
+    except Exception as e:
+        print(f"Error processing sample {sample_idx}: {e}")
+        return None
+
+def generate_single_sample_with_data(sample_idx: int, generator: SampleVisualizationGenerator, 
+                                   features: np.ndarray, targets: np.ndarray, 
+                                   base_output_dir: str = "visualizations"):
+    """Generate visualizations for a single sample with pre-loaded data"""
+    try:
+        if sample_idx >= len(features):
+            raise ValueError(f"Sample index {sample_idx} out of range. Available samples: {len(features)}")
+            
+        sample_features = features[sample_idx]
+        sample_target = targets[sample_idx]
+        
+        print(f"Processing sample {sample_idx}")
+        print(f"  Original features shape: {sample_features.shape}") 
+        print(f"  Original target shape: {sample_target.shape}")
+        
+        # Store original for visualization
+        generator.original_features = sample_features.copy()
+        generator.original_target = sample_target.copy()
+        
+        # Preprocess for model inference
+        processed_features = generator._preprocess_for_model(sample_features)
+        processed_target = generator._preprocess_target_for_model(sample_target)
+        
+        print(f"  Processed features shape: {processed_features.shape}")
+        print(f"  Processed target shape: {processed_target.shape}")
+        
+        # Create output directory
+        output_dir = generator.create_sample_directory(sample_idx, base_output_dir)
+        
+        # Generate prediction
+        prediction = generator.predict_sample(processed_features)
         
         # Upscale prediction back to original size for proper metrics calculation
         original_h, original_w = generator.original_target.shape[:2]
@@ -599,9 +611,9 @@ def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenera
         print(f"  Original target shape: {generator.original_target.shape}")
         
         # Generate all visualizations
-        feature_files = generator.generate_individual_feature_visualizations(features, output_dir)
+        feature_files = generator.generate_individual_feature_visualizations(processed_features, output_dir)
         fire_files = generator.generate_fire_progression_visualization(
-            features, target, upscaled_prediction, output_dir)
+            processed_features, processed_target, upscaled_prediction, output_dir)
         metrics_files, metrics = generator.generate_metrics_dashboard(upscaled_prediction, generator.original_target, output_dir)
         metrics_file_path, doc_file_path = generator.generate_sample_summary(
             sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
@@ -617,8 +629,8 @@ def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenera
         print(f"Error processing sample {sample_idx}: {e}")
         return None
 
-def main(sample_idx: int = 0, data_dir: str = "../data/processed", 
-         model_path: str = "../models/model_nfp.pth", generate_all: bool = False, max_samples: int = None):
+def main(sample_idx: int = 0, data_dir: str = "data/processed", 
+         model_path: str = "model_nfp.pth", generate_all: bool = False, max_samples: int = None):
     """Main function to generate visualizations for sample(s)
     
     Args:
@@ -638,15 +650,9 @@ def main(sample_idx: int = 0, data_dir: str = "../data/processed",
             print("Generating Visualizations for ALL Test Samples")
             print("=" * 60)
             
-            # Load test data to get total number of samples
-            try:
-                features, targets = load_ndws_data(data_dir, "test")
-            except:
-                print("Could not load test data, using train data instead")
-                features, targets = load_ndws_data(data_dir, "train")
-            
-            if features is None or targets is None:
-                raise ValueError("Could not load data for visualization")
+            # This functionality is not supported in Railway deployment
+            # Data must be loaded via Supabase and passed directly
+            raise NotImplementedError("Batch processing is not supported in Railway deployment. Use individual sample processing instead.")
             
             total_samples = len(features)
             if max_samples is not None:
@@ -727,7 +733,7 @@ def generate_overall_summary(successful_samples, failed_samples, all_metrics):
     """Generate overall summary statistics for batch processing"""
     
     # Create overall summary directory
-    summary_dir = Path("../visualizations/batch_summary")
+    summary_dir = Path("visualizations/batch_summary")
     summary_dir.mkdir(parents=True, exist_ok=True)
     
     # Summary statistics
@@ -788,12 +794,12 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate comprehensive visualizations for a test sample')
-    parser.add_argument('--sample-idx', type=int, default=295, 
+    parser.add_argument('--sample-idx', type=int, default=0, 
                        help='Index of the test sample to visualize (default: 0)')
-    parser.add_argument('--data-dir', type=str, default="../data/processed",
-                       help='Directory containing processed data (default: ../data/processed)')
-    parser.add_argument('--model-path', type=str, default="../models/model_nfp.pth",
-                       help='Path to the trained model (default: ../models/model_nfp.pth)')
+    parser.add_argument('--data-dir', type=str, default="data/processed",
+                       help='Directory containing processed data (default: data/processed)')
+    parser.add_argument('--model-path', type=str, default="model_nfp.pth",
+                       help='Path to the trained model (default: model_nfp.pth)')
     parser.add_argument('--generate-all', action='store_true',
                        help='Generate all visualizations for all samples (default: False)')
     parser.add_argument('--max-samples', type=int, default=None,

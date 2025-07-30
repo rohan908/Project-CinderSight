@@ -85,28 +85,41 @@ export default function Home() {
     fetchSampleCount()
   }, [])
 
-  // Load random sample on mount
+  // Load sample 0 on mount
   useEffect(() => {
     if (availableSamples > 0) {
-      loadRandomSample()
+      loadSpecificSample(295)
     }
   }, [availableSamples])
 
   const fetchSampleCount = async () => {
     try {
-      console.log('Fetching sample count...')
-      const response = await fetch('/api/samples/count')
-      console.log('Sample count response status:', response.status)
+      // Ensure API URL has proper protocol
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
+      console.log('🔗 API URL:', apiUrl)
+      console.log('📡 Fetching sample count from:', `${apiUrl}/samples/count`)
+      
+      const response = await fetch(`${apiUrl}/samples/count`)
+      console.log('📊 Sample count response status:', response.status)
+      console.log('📊 Response headers:', Object.fromEntries(response.headers.entries()))
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorText = await response.text()
+        console.error('❌ Response error text:', errorText)
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`)
       }
       
       const data = await response.json()
-      console.log('Sample count data:', data)
+      console.log('✅ Sample count data:', data)
       setAvailableSamples(data.total_samples)
     } catch (error) {
-      console.error('Error fetching sample count:', error)
+      console.error('❌ Error fetching sample count:', error)
       setError(`Failed to load sample count: ${error}`)
     }
   }
@@ -121,7 +134,14 @@ export default function Home() {
       setSelectedSample(randomIndex)
       
       // Generate visualizations for this sample
-      const response = await fetch('/api/visualization/generate', {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
+      const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,10 +178,16 @@ export default function Home() {
   const pollForCompletion = async (taskId: string) => {
     const maxAttempts = 60 // 5 minutes with 5-second intervals
     let attempts = 0
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+    
+    // Add https:// if no protocol is specified
+    if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+      apiUrl = `https://${apiUrl}`
+    }
 
     while (attempts < maxAttempts) {
       try {
-        const response = await fetch(`/api/visualization/status/${taskId}`)
+        const response = await fetch(`${apiUrl}/visualization/status/${taskId}`)
         const status = await response.json()
 
         if (status.status === 'completed') {
@@ -169,32 +195,32 @@ export default function Home() {
           const metrics = status.metrics
           
           // Download feature images
-          const featuresResponse = await fetch(`/api/visualization/download/${taskId}/features`)
+          const featuresResponse = await fetch(`${apiUrl}/visualization/download/${taskId}/features`)
           const featuresBlob = await featuresResponse.blob()
           
           const imageUrls = {
-            previous_fire: `/api/visualization/image/${taskId}/fire_previous_fire.png`,
-            ground_truth: `/api/visualization/image/${taskId}/fire_ground_truth.png`,
-            prediction_probability: `/api/visualization/image/${taskId}/fire_prediction_probability.png`,
-            prediction_binary: `/api/visualization/image/${taskId}/fire_prediction_binary.png`,
-            comparison: `/api/visualization/image/${taskId}/fire_comparison_overlay.png`,
-            metrics_performance_chart: `/api/visualization/image/${taskId}/metrics_performance_chart.png`,
-            metrics_confusion_matrix: `/api/visualization/image/${taskId}/metrics_confusion_matrix.png`,
+            previous_fire: `${apiUrl}/visualization/image/${taskId}/fire_previous_fire.png`,
+            ground_truth: `${apiUrl}/visualization/image/${taskId}/fire_ground_truth.png`,
+            prediction_probability: `${apiUrl}/visualization/image/${taskId}/fire_prediction_probability.png`,
+            prediction_binary: `${apiUrl}/visualization/image/${taskId}/fire_prediction_binary.png`,
+            comparison: `${apiUrl}/visualization/image/${taskId}/fire_comparison_overlay.png`,
+            metrics_performance_chart: `${apiUrl}/visualization/image/${taskId}/metrics_performance_chart.png`,
+            metrics_confusion_matrix: `${apiUrl}/visualization/image/${taskId}/metrics_confusion_matrix.png`,
             feature_images: {
-              elevation: `/api/visualization/image/${taskId}/feature_12_elevation.png`,
-              temperature: `/api/visualization/image/${taskId}/feature_03_tmmx.png`,
-              humidity: `/api/visualization/image/${taskId}/feature_02_sph.png`,
-              wind_speed: `/api/visualization/image/${taskId}/feature_00_vs.png`,
-              wind_direction: `/api/visualization/image/${taskId}/feature_05_th.png`,
-              precipitation: `/api/visualization/image/${taskId}/feature_01_pr.png`,
-              pressure: `/api/visualization/image/${taskId}/feature_07_pdsi.png`,
-              solar_radiation: `/api/visualization/image/${taskId}/feature_06_erc.png`,
-              visibility: `/api/visualization/image/${taskId}/feature_06_erc.png`,
-              slope: `/api/visualization/image/${taskId}/feature_14_slope.png`,
-              aspect: `/api/visualization/image/${taskId}/feature_13_aspect.png`,
-              ndvi: `/api/visualization/image/${taskId}/feature_15_ndvi.png`,
-              land_cover: `/api/visualization/image/${taskId}/feature_16_evi.png`,
-              population: `/api/visualization/image/${taskId}/feature_17_population.png`,
+              elevation: `${apiUrl}/visualization/image/${taskId}/feature_12_elevation.png`,
+              temperature: `${apiUrl}/visualization/image/${taskId}/feature_03_tmmx.png`,
+              humidity: `${apiUrl}/visualization/image/${taskId}/feature_02_sph.png`,
+              wind_speed: `${apiUrl}/visualization/image/${taskId}/feature_00_vs.png`,
+              wind_direction: `${apiUrl}/visualization/image/${taskId}/feature_05_th.png`,
+              precipitation: `${apiUrl}/visualization/image/${taskId}/feature_01_pr.png`,
+              pressure: `${apiUrl}/visualization/image/${taskId}/feature_07_pdsi.png`,
+              solar_radiation: `${apiUrl}/visualization/image/${taskId}/feature_06_erc.png`,
+              visibility: `${apiUrl}/visualization/image/${taskId}/feature_06_erc.png`,
+              slope: `${apiUrl}/visualization/image/${taskId}/feature_14_slope.png`,
+              aspect: `${apiUrl}/visualization/image/${taskId}/feature_13_aspect.png`,
+              ndvi: `${apiUrl}/visualization/image/${taskId}/feature_15_ndvi.png`,
+              land_cover: `${apiUrl}/visualization/image/${taskId}/feature_16_evi.png`,
+              population: `${apiUrl}/visualization/image/${taskId}/feature_17_population.png`,
             }
           }
            
@@ -230,7 +256,14 @@ export default function Home() {
       setSelectedSample(sampleIdx)
       
       // Generate visualizations for this sample
-      const response = await fetch('/api/visualization/generate', {
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+      
+      // Add https:// if no protocol is specified
+      if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+        apiUrl = `https://${apiUrl}`
+      }
+      
+      const response = await fetch(`${apiUrl}/visualization/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -376,7 +409,7 @@ export default function Home() {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 <div>
                   <p className="text-sm font-medium">Generating visualizations</p>
-                  <p className="text-sm text-gray-500">This may take a few moments...</p>
+                  <p className="text-sm text-gray-500">This may take a few moments... (expect 30s to 2 min)</p>
                 </div>
               </div>
             </CardContent>
@@ -488,7 +521,7 @@ export default function Home() {
                      />
                    </div>
                  </div>
-                 <div className="space-y-2">
+              <div className="space-y-2">
                    <h4 className="font-medium text-sm">IoU Comparison</h4>
                    <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
                      <Image 
@@ -577,15 +610,15 @@ export default function Home() {
                   {FEATURES.find(f => f.id === selectedFeature)?.description}
                 </CardDescription>
         </CardHeader>
-                <CardContent>
+        <CardContent>
                  <div className="aspect-[4/3] relative rounded-lg border overflow-hidden bg-gray-50">
                    {featureLoading ? (
                      <div className="w-full h-full flex items-center justify-center bg-gray-100">
                        <div className="flex items-center space-x-2">
                          <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
                          <span className="text-sm text-gray-600">Loading feature...</span>
-                       </div>
-                     </div>
+              </div>
+            </div>
                    ) : (
                      <Image 
                        src={sampleData.images.feature_images[selectedFeature]} 
@@ -623,7 +656,7 @@ export default function Home() {
                     onLoad={() => console.log('✅ Performance metrics chart loaded successfully')}
                     onError={() => console.error('❌ Performance metrics chart failed to load')}
                   />
-                </div>
+              </div>
               </CardContent>
             </Card>
 
@@ -647,9 +680,9 @@ export default function Home() {
                     onLoad={() => console.log('✅ Confusion matrix loaded successfully')}
                     onError={() => console.error('❌ Confusion matrix failed to load')}
                   />
-                </div>
-              </CardContent>
-            </Card>
+          </div>
+        </CardContent>
+      </Card>
           </div>
         </div>
       ) : null}
