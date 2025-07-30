@@ -765,7 +765,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate comprehensive visualizations for a test sample')
-    parser.add_argument('--sample-idx', type=int, default=0, 
+    parser.add_argument('--sample-idx', type=int, default=295, 
                        help='Index of the test sample to visualize (default: 0)')
     parser.add_argument('--data-dir', type=str, default="../data/processed",
                        help='Directory containing processed data (default: ../data/processed)')

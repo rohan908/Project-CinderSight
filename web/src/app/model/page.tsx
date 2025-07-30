@@ -30,7 +30,7 @@ export default function ModelPage() {
           The final model employs two components, the <strong>CNNModel</strong> that extracts spatial features and the <strong>NextFramePredictor</strong> that predicts the next day&apos;s wildfire spread map from the extracted spatial features.
           </p>
         </div>
-
+      </div>
 
       <Card className="mb-8 mt-8">
         <CardHeader>
@@ -98,6 +98,61 @@ export default function ModelPage() {
         </CardContent>
       </Card>
 
+      <Card className="mt-8 mb-8">
+        <CardHeader>
+          <CardTitle>Custom Loss Function</CardTitle>
+          <CardDescription>
+            Addressing class imbalance with Weighted Binary Cross-Entropy (WBCE) and Dice Loss
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Challenge: Class Imbalance</h4>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>• <strong>Fire pixels</strong>: Only 1.34% of the dataset (severely underrepresented)</p>
+                <p>• <strong>No-fire pixels</strong>: 97.81% of the dataset (majority class)</p>
+                <p>• <strong>Problem</strong>: Standard BCE loss would bias the model toward predicting "no-fire"</p>
+              </div>
+              
+              <h4 className="text-lg font-semibold text-gray-800 mb-3 mt-6">Solution: WBCE + Dice Loss</h4>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p>• <strong>Weighted Binary Cross-Entropy (WBCE)</strong>: Assigns higher weights to fire class</p>
+                <p>• <strong>Fire class weight (w₁)</strong>: 10 (10x higher importance)</p>
+                <p>• <strong>No-fire class weight (w₀)</strong>: 1 (baseline importance)</p>
+                <p>• <strong>Dice Loss</strong>: Improves segmentation accuracy and boundary precision</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Mathematical Formulation</h4>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 mb-2">WBCE Loss:</p>
+                <p className="text-xs text-gray-600 font-mono mb-3">
+                  WBCE = -1/N × Σ(wᵢ × [yᵢ × log(ŷᵢ) + (1-yᵢ) × log(1-ŷᵢ)])
+                </p>
+                
+                <p className="text-sm font-medium text-gray-700 mb-2">Weight Assignment:</p>
+                <p className="text-xs text-gray-600 font-mono mb-3">
+                  wᵢ = {'{'}w₁ = 10 if yᵢ = 1 (fire), w₀ = 1 if yᵢ = 0 (no-fire){'}'}
+                </p>
+                
+                <p className="text-sm font-medium text-gray-700 mb-2">Combined Loss:</p>
+                <p className="text-xs text-gray-600 font-mono">
+                  Total Loss = WBCE + 2 × Dice Loss
+                </p>
+              </div>
+              
+              <div className="mt-4 space-y-2 text-sm text-gray-600">
+                <p>• <strong>Factor of 2</strong>: Emphasizes Dice Loss contribution for precise boundaries</p>
+                <p>• <strong>Masking</strong>: Excludes invalid pixels (marked as -1) from loss computation</p>
+                <p>• <strong>Result</strong>: Balanced training that prioritizes fire detection while maintaining accuracy</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card className="mt-8">
         <CardHeader>
           <CardTitle>Model Architecture</CardTitle>
@@ -118,8 +173,6 @@ export default function ModelPage() {
         </CardContent>
       </Card>
 
-
-      </div>
     </div>
   );
 }

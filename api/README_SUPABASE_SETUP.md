@@ -59,7 +59,7 @@ Create the following tables in your Supabase database:
 ```sql
 CREATE TABLE models (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
+    model_name VARCHAR(255) NOT NULL,
     model_path TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()

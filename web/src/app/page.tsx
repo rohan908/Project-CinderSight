@@ -409,7 +409,7 @@ export default function Home() {
                 <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
                 <div>
                   <p className="text-sm font-medium">Generating visualizations</p>
-                  <p className="text-sm text-gray-500">This may take a few moments...</p>
+                  <p className="text-sm text-gray-500">This may take a few moments... (expect 30s to 2 min)</p>
                 </div>
               </div>
             </CardContent>
