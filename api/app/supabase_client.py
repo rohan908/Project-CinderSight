@@ -227,11 +227,15 @@ class SupabaseManager:
             
             # Load features (19 input channels)
             with open(data_path, 'rb') as f:
-                features = pickle.load(f)
+                features = pickle.load(f)  # Shape: (N, C, H, W)
             
             # Load labels (FireMask)
             with open(labels_path, 'rb') as f:
-                labels = pickle.load(f)
+                labels = pickle.load(f)  # Shape: (N, H, W)
+            
+            # Convert to (N, H, W, C) format expected by model (same as local version)
+            features = np.transpose(features, (0, 2, 3, 1))  # (N, C, H, W) -> (N, H, W, C)
+            labels = np.expand_dims(labels, axis=-1)  # (N, H, W) -> (N, H, W, 1)
             
             logger.info(f"Loaded data from Supabase: features shape {features.shape}, labels shape {labels.shape}")
             return features, labels
