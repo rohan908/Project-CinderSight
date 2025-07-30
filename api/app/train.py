@@ -16,6 +16,10 @@ def load_ndws_data(data_dir="data/processed", split="train"):
         with open(labels_path, 'rb') as f:
             labels = pickle.load(f)  # Shape: (N, H, W)
         
+        # Convert to (N, H, W, C) format expected by model
+        features = np.transpose(features, (0, 2, 3, 1))  # (N, C, H, W) -> (N, H, W, C)
+        labels = np.expand_dims(labels, axis=-1)  # (N, H, W) -> (N, H, W, 1)
+        
         print(f"Loaded {split} data:")
         print(f"  Features shape: {features.shape}")
         print(f"  Labels shape: {labels.shape}")
