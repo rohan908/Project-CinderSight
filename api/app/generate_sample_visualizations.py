@@ -82,10 +82,9 @@ class SampleVisualizationGenerator:
         crop_size = self.model_config.get('crop_size', 32)
         expected_features = self.model_config.get('num_features', 171)
         
-        # Handle different input shapes
+        # Transpose from (C, H, W) to (H, W, C) format to match local version
         if features.shape[0] < features.shape[1]:  # (19, 64, 64) format
-            # Transpose to (64, 64, 19) format
-            features = features.transpose(1, 2, 0)
+            features = features.transpose(1, 2, 0)  # -> (64, 64, 19)
             print(f"  Transposed from (19, 64, 64) to (64, 64, 19)")
         
         # Crop to the expected size (center crop)
@@ -126,15 +125,10 @@ class SampleVisualizationGenerator:
         """Preprocess target to match model expectations"""
         crop_size = self.model_config.get('crop_size', 32)
         
-        # Handle different input shapes
-        if len(target.shape) == 2:  # (64, 64) format
-            # Add channel dimension
+        # Add channel dimension if needed (from (64, 64) to (64, 64, 1))
+        if len(target.shape) == 2:
             target = target[:, :, np.newaxis]
             print(f"  Added channel dimension to target: {target.shape}")
-        elif target.shape[0] < target.shape[1]:  # (1, 64, 64) format
-            # Transpose to (64, 64, 1) format
-            target = target.transpose(1, 2, 0)
-            print(f"  Transposed target from (1, 64, 64) to (64, 64, 1)")
         
         # Crop to the expected size (center crop)
         h, w, c = target.shape
@@ -342,7 +336,34 @@ class SampleVisualizationGenerator:
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
         target_tensor = torch.FloatTensor(target).unsqueeze(0)
+        
+        # Additional debugging
+        print(f"  Tensor shapes - pred: {pred_tensor.shape}, target: {target_tensor.shape}")
+        print(f"  Tensor ranges - pred: [{pred_tensor.min():.3f}, {pred_tensor.max():.3f}], target: [{target_tensor.min():.3f}, {target_tensor.max():.3f}]")
+        print(f"  Target unique values: {torch.unique(target_tensor)}")
+        print(f"  Prediction unique values (after threshold): {torch.unique((pred_tensor > 0.5).float())}")
+        
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
+        
+        # Debug the actual calculated values
+        print(f"  Raw metrics from function:")
+        print(f"    TP: {metrics['tp']}, FP: {metrics['fp']}, FN: {metrics['fn']}, TN: {metrics['tn']}")
+        print(f"    Precision: {metrics['precision']:.6f}")
+        print(f"    Recall: {metrics['recall']:.6f}")
+        print(f"    F1: {metrics['f1']:.6f}")
+        print(f"    IoU: {metrics['iou']:.6f}")
+        
+        # Manual verification
+        tp, fp, fn, tn = metrics['tp'], metrics['fp'], metrics['fn'], metrics['tn']
+        manual_precision = tp / (tp + fp + 1e-6)
+        manual_recall = tp / (tp + fn + 1e-6)
+        manual_f1 = 2 * manual_precision * manual_recall / (manual_precision + manual_recall + 1e-6)
+        manual_iou = tp / (tp + fp + fn + 1e-6)
+        print(f"  Manual verification:")
+        print(f"    Precision: {manual_precision:.6f}")
+        print(f"    Recall: {manual_recall:.6f}")
+        print(f"    F1: {manual_f1:.6f}")
+        print(f"    IoU: {manual_iou:.6f}")
         
         generated_files = []
         
@@ -526,37 +547,6 @@ Dice Weight: {self.model_config.get('dice_weight', 'N/A')}"""
         print(f"Generated feature documentation: feature_documentation.json")
         return metrics_file_path, doc_file_path
 
-def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenerator, 
-                          data_dir: str, base_output_dir: str = "visualizations"):
-    """Generate visualizations for a single sample"""
-    try:
-        # Load test sample
-        features, target = generator.load_test_sample(sample_idx, data_dir)
-        
-        # Create output directory
-        output_dir = generator.create_sample_directory(sample_idx, base_output_dir)
-        
-        # Generate prediction
-        prediction = generator.predict_sample(features)
-        
-        # Generate all visualizations
-        feature_files = generator.generate_individual_feature_visualizations(features, output_dir)
-        fire_files = generator.generate_fire_progression_visualization(
-            features, target, prediction, output_dir)
-        metrics_files, metrics = generator.generate_metrics_dashboard(prediction, target, output_dir)
-        metrics_file_path, doc_file_path = generator.generate_sample_summary(
-            sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
-        
-        return {
-            'sample_idx': sample_idx,
-            'output_dir': output_dir,
-            'metrics': metrics,
-            'files_generated': len(feature_files) + len(fire_files) + 2
-        }
-        
-    except Exception as e:
-        print(f"Error processing sample {sample_idx}: {e}")
-        return None
 
 def generate_single_sample_with_data(sample_idx: int, generator: SampleVisualizationGenerator, 
                                    features: np.ndarray, targets: np.ndarray, 
@@ -613,7 +603,8 @@ def generate_single_sample_with_data(sample_idx: int, generator: SampleVisualiza
         # Generate all visualizations
         feature_files = generator.generate_individual_feature_visualizations(processed_features, output_dir)
         fire_files = generator.generate_fire_progression_visualization(
-            processed_features, processed_target, upscaled_prediction, output_dir)
+            sample_features, sample_target, upscaled_prediction, output_dir)
+        # Use upscaled prediction and original target for metrics calculation (like local version)
         metrics_files, metrics = generator.generate_metrics_dashboard(upscaled_prediction, generator.original_target, output_dir)
         metrics_file_path, doc_file_path = generator.generate_sample_summary(
             sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
@@ -628,183 +619,3 @@ def generate_single_sample_with_data(sample_idx: int, generator: SampleVisualiza
     except Exception as e:
         print(f"Error processing sample {sample_idx}: {e}")
         return None
-
-def main(sample_idx: int = 0, data_dir: str = "data/processed", 
-         model_path: str = "model_nfp.pth", generate_all: bool = False, max_samples: int = None):
-    """Main function to generate visualizations for sample(s)
-    
-    Args:
-        sample_idx: Index of the test sample to visualize (ignored if generate_all=True)
-        data_dir: Directory containing processed data
-        model_path: Path to the trained model
-        generate_all: Generate all visualizations for all samples
-        max_samples: Maximum number of samples to process (None = all samples)
-    """
-    
-    try:
-        # Initialize generator
-        generator = SampleVisualizationGenerator(model_path)
-        
-        if generate_all:
-            print("=" * 60)
-            print("Generating Visualizations for ALL Test Samples")
-            print("=" * 60)
-            
-            # This functionality is not supported in Railway deployment
-            # Data must be loaded via Supabase and passed directly
-            raise NotImplementedError("Batch processing is not supported in Railway deployment. Use individual sample processing instead.")
-            
-            total_samples = len(features)
-            if max_samples is not None:
-                total_samples = min(max_samples, total_samples)
-            
-            print(f"Processing {total_samples} samples...")
-            
-            # Track results
-            successful_samples = []
-            failed_samples = []
-            all_metrics = []
-            
-            # Process each sample
-            for idx in range(total_samples):
-                print(f"\nProcessing sample {idx + 1}/{total_samples} (ID: {idx})")
-                
-                result = generate_single_sample(idx, generator, data_dir)
-                
-                if result:
-                    successful_samples.append(result)
-                    all_metrics.append({
-                        'sample_idx': idx,
-                        **result['metrics']
-                    })
-                    print(f"Sample {idx} completed - F1: {result['metrics']['f1']:.3f}, IoU: {result['metrics']['iou']:.3f}")
-                else:
-                    failed_samples.append(idx)
-                    print(f"Sample {idx} failed")
-                
-                # Progress update every 10 samples
-                if (idx + 1) % 10 == 0:
-                    success_rate = len(successful_samples) / (idx + 1) * 100
-                    print(f"\nProgress: {idx + 1}/{total_samples} ({success_rate:.1f}% success rate)")
-            
-            # Generate summary statistics
-            generate_overall_summary(successful_samples, failed_samples, all_metrics)
-            
-            print("\n" + "=" * 60)
-            print("BATCH PROCESSING COMPLETE!")
-            print("=" * 60)
-            print(f"Successfully processed: {len(successful_samples)}/{total_samples} samples")
-            print(f"Failed samples: {len(failed_samples)}")
-            if all_metrics:
-                avg_f1 = sum(m['f1'] for m in all_metrics) / len(all_metrics)
-                avg_iou = sum(m['iou'] for m in all_metrics) / len(all_metrics)
-                print(f"Average F1: {avg_f1:.3f}, Average IoU: {avg_iou:.3f}")
-            
-            return successful_samples, failed_samples
-            
-        else:
-            # Single sample processing (original functionality)
-            print("=" * 60)
-            print(f"Sample Visualization Generator")
-            print(f"Sample Index: {sample_idx}")
-            print("=" * 60)
-            
-            result = generate_single_sample(sample_idx, generator, data_dir)
-            
-            if result:
-                print("\n" + "=" * 60)
-                print("Visualization Generation Complete!")
-                print("=" * 60)
-                print(f"Output directory: {result['output_dir']}")
-                print(f"Total files generated: {result['files_generated'] + 1}")  # +1 for feature documentation
-                print(f"Sample metrics - F1: {result['metrics']['f1']:.3f}, IoU: {result['metrics']['iou']:.3f}")
-                print(f"Metrics JSON: sample_metrics.json")
-                print(f"Feature documentation: feature_documentation.json")
-                
-                return result['output_dir'], result['metrics']
-            else:
-                raise ValueError(f"Failed to process sample {sample_idx}")
-        
-    except Exception as e:
-        print(f"Error in main processing: {e}")
-        raise
-
-def generate_overall_summary(successful_samples, failed_samples, all_metrics):
-    """Generate overall summary statistics for batch processing"""
-    
-    # Create overall summary directory
-    summary_dir = Path("visualizations/batch_summary")
-    summary_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Summary statistics
-    summary_data = {
-        "processing_summary": {
-            "total_samples_attempted": len(successful_samples) + len(failed_samples),
-            "successful_samples": len(successful_samples),
-            "failed_samples": len(failed_samples),
-            "success_rate": len(successful_samples) / (len(successful_samples) + len(failed_samples)) * 100
-        },
-        "failed_sample_indices": failed_samples,
-        "metrics_summary": {}
-    }
-    
-    if all_metrics:
-        metrics_array = np.array([[m['f1'], m['iou'], m['precision'], m['recall']] for m in all_metrics])
-        
-        summary_data["metrics_summary"] = {
-            "mean": {
-                "f1_score": float(np.mean(metrics_array[:, 0])),
-                "iou": float(np.mean(metrics_array[:, 1])),
-                "precision": float(np.mean(metrics_array[:, 2])),
-                "recall": float(np.mean(metrics_array[:, 3]))
-            },
-            "std": {
-                "f1_score": float(np.std(metrics_array[:, 0])),
-                "iou": float(np.std(metrics_array[:, 1])),
-                "precision": float(np.std(metrics_array[:, 2])),
-                "recall": float(np.std(metrics_array[:, 3]))
-            },
-            "min": {
-                "f1_score": float(np.min(metrics_array[:, 0])),
-                "iou": float(np.min(metrics_array[:, 1])),
-                "precision": float(np.min(metrics_array[:, 2])),
-                "recall": float(np.min(metrics_array[:, 3]))
-            },
-            "max": {
-                "f1_score": float(np.max(metrics_array[:, 0])),
-                "iou": float(np.max(metrics_array[:, 1])),
-                "precision": float(np.max(metrics_array[:, 2])),  
-                "recall": float(np.max(metrics_array[:, 3]))
-            }
-        }
-    
-    # Save overall summary
-    with open(summary_dir / "batch_processing_summary.json", 'w') as f:
-        json.dump(summary_data, f, indent=2)
-    
-    # Save detailed metrics for all samples
-    with open(summary_dir / "all_sample_metrics.json", 'w') as f:
-        json.dump(all_metrics, f, indent=2)
-    
-    print(f"\nBatch summary saved to: {summary_dir}")
-    print(f"  - batch_processing_summary.json")
-    print(f"  - all_sample_metrics.json")
-
-if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Generate comprehensive visualizations for a test sample')
-    parser.add_argument('--sample-idx', type=int, default=0, 
-                       help='Index of the test sample to visualize (default: 0)')
-    parser.add_argument('--data-dir', type=str, default="data/processed",
-                       help='Directory containing processed data (default: data/processed)')
-    parser.add_argument('--model-path', type=str, default="model_nfp.pth",
-                       help='Path to the trained model (default: model_nfp.pth)')
-    parser.add_argument('--generate-all', action='store_true',
-                       help='Generate all visualizations for all samples (default: False)')
-    parser.add_argument('--max-samples', type=int, default=None,
-                       help='Maximum number of samples to process when using --generate-all (default: None = all samples)')
-    
-    args = parser.parse_args()
-    
-    main(args.sample_idx, args.data_dir, args.model_path, args.generate_all, args.max_samples) 

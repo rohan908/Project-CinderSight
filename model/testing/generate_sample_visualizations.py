@@ -381,7 +381,34 @@ class SampleVisualizationGenerator:
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
         target_tensor = torch.FloatTensor(target).unsqueeze(0)
+        
+        # Additional debugging
+        print(f"  Tensor shapes - pred: {pred_tensor.shape}, target: {target_tensor.shape}")
+        print(f"  Tensor ranges - pred: [{pred_tensor.min():.3f}, {pred_tensor.max():.3f}], target: [{target_tensor.min():.3f}, {target_tensor.max():.3f}]")
+        print(f"  Target unique values: {torch.unique(target_tensor)}")
+        print(f"  Prediction unique values (after threshold): {torch.unique((pred_tensor > 0.5).float())}")
+        
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
+        
+        # Debug the actual calculated values
+        print(f"  Raw metrics from function:")
+        print(f"    TP: {metrics['tp']}, FP: {metrics['fp']}, FN: {metrics['fn']}, TN: {metrics['tn']}")
+        print(f"    Precision: {metrics['precision']:.6f}")
+        print(f"    Recall: {metrics['recall']:.6f}")
+        print(f"    F1: {metrics['f1']:.6f}")
+        print(f"    IoU: {metrics['iou']:.6f}")
+        
+        # Manual verification
+        tp, fp, fn, tn = metrics['tp'], metrics['fp'], metrics['fn'], metrics['tn']
+        manual_precision = tp / (tp + fp + 1e-6)
+        manual_recall = tp / (tp + fn + 1e-6)
+        manual_f1 = 2 * manual_precision * manual_recall / (manual_precision + manual_recall + 1e-6)
+        manual_iou = tp / (tp + fp + fn + 1e-6)
+        print(f"  Manual verification:")
+        print(f"    Precision: {manual_precision:.6f}")
+        print(f"    Recall: {manual_recall:.6f}")
+        print(f"    F1: {manual_f1:.6f}")
+        print(f"    IoU: {manual_iou:.6f}")
         
         generated_files = []
         

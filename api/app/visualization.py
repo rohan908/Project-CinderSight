@@ -19,7 +19,7 @@ from .env_config import EnvConfig
 
 try:
     # Import from the local generate_sample_visualizations module
-    from .generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample, generate_single_sample_with_data
+    from .generate_sample_visualizations import SampleVisualizationGenerator, generate_single_sample_with_data
 except ImportError as e:
     print(f"Warning: Could not import visualization modules: {e}")
     # Create dummy classes for when modules are not available
@@ -27,8 +27,7 @@ except ImportError as e:
         def __init__(self, *args, **kwargs):
             pass
     
-    def generate_single_sample(*args, **kwargs):
-        return None
+    # generate_single_sample function removed - not used in API version
     
     def generate_single_sample_with_data(*args, **kwargs):
         return None
