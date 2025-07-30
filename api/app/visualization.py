@@ -33,8 +33,8 @@ except ImportError as e:
     def generate_single_sample_with_data(*args, **kwargs):
         return None
 
-# Global configuration
-BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'model', 'visualizations')
+# Global configuration - use Railway-compatible path
+BASE_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'visualizations')
 
 class VisualizationRequest(BaseModel):
     sample_idx: int
@@ -67,16 +67,22 @@ class VisualizationAPI:
     def validate_paths(self):
         """Validate that required paths exist and Supabase is accessible"""
         try:
+            print(f"📁 Base output directory: {self.base_output_dir}")
+            print(f"📁 Current working directory: {os.getcwd()}")
+            
             # Test Supabase connection by getting model paths
             self.supabase_manager.get_model_paths()
             
             # Create output directory if it doesn't exist
+            print(f"📁 Creating output directory: {self.base_output_dir}")
             os.makedirs(self.base_output_dir, exist_ok=True)
+            print(f"✅ Output directory created/verified")
             
         except Exception as e:
+            print(f"❌ Error in validate_paths: {str(e)}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Supabase connection failed: {str(e)}"
+                detail=f"Path validation failed: {str(e)}"
             )
     
     async def generate_visualizations(self, request: VisualizationRequest, background_tasks: BackgroundTasks):
