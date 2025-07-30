@@ -381,6 +381,13 @@ class SampleVisualizationGenerator:
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
         target_tensor = torch.FloatTensor(target).unsqueeze(0)
+        
+        # Additional debugging
+        print(f"  Tensor shapes - pred: {pred_tensor.shape}, target: {target_tensor.shape}")
+        print(f"  Tensor ranges - pred: [{pred_tensor.min():.3f}, {pred_tensor.max():.3f}], target: [{target_tensor.min():.3f}, {target_tensor.max():.3f}]")
+        print(f"  Target unique values: {torch.unique(target_tensor)}")
+        print(f"  Prediction unique values (after threshold): {torch.unique((pred_tensor > 0.5).float())}")
+        
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
         
         generated_files = []

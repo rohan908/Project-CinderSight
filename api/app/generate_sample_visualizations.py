@@ -342,6 +342,13 @@ class SampleVisualizationGenerator:
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
         target_tensor = torch.FloatTensor(target).unsqueeze(0)
+        
+        # Additional debugging
+        print(f"  Tensor shapes - pred: {pred_tensor.shape}, target: {target_tensor.shape}")
+        print(f"  Tensor ranges - pred: [{pred_tensor.min():.3f}, {pred_tensor.max():.3f}], target: [{target_tensor.min():.3f}, {target_tensor.max():.3f}]")
+        print(f"  Target unique values: {torch.unique(target_tensor)}")
+        print(f"  Prediction unique values (after threshold): {torch.unique((pred_tensor > 0.5).float())}")
+        
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
         
         generated_files = []
@@ -613,8 +620,10 @@ def generate_single_sample_with_data(sample_idx: int, generator: SampleVisualiza
         # Generate all visualizations
         feature_files = generator.generate_individual_feature_visualizations(processed_features, output_dir)
         fire_files = generator.generate_fire_progression_visualization(
-            processed_features, processed_target, upscaled_prediction, output_dir)
-        metrics_files, metrics = generator.generate_metrics_dashboard(upscaled_prediction, generator.original_target, output_dir)
+            sample_features, sample_target, upscaled_prediction, output_dir)
+        # Use original prediction for metrics calculation (like local version)
+        # Use upscaled prediction only for visualization
+        metrics_files, metrics = generator.generate_metrics_dashboard(prediction, processed_target, output_dir)
         metrics_file_path, doc_file_path = generator.generate_sample_summary(
             sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
         
