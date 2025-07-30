@@ -351,6 +351,26 @@ class SampleVisualizationGenerator:
         
         metrics = calculate_segmentation_metrics(pred_tensor, target_tensor)
         
+        # Debug the actual calculated values
+        print(f"  Raw metrics from function:")
+        print(f"    TP: {metrics['tp']}, FP: {metrics['fp']}, FN: {metrics['fn']}, TN: {metrics['tn']}")
+        print(f"    Precision: {metrics['precision']:.6f}")
+        print(f"    Recall: {metrics['recall']:.6f}")
+        print(f"    F1: {metrics['f1']:.6f}")
+        print(f"    IoU: {metrics['iou']:.6f}")
+        
+        # Manual verification
+        tp, fp, fn, tn = metrics['tp'], metrics['fp'], metrics['fn'], metrics['tn']
+        manual_precision = tp / (tp + fp + 1e-6)
+        manual_recall = tp / (tp + fn + 1e-6)
+        manual_f1 = 2 * manual_precision * manual_recall / (manual_precision + manual_recall + 1e-6)
+        manual_iou = tp / (tp + fp + fn + 1e-6)
+        print(f"  Manual verification:")
+        print(f"    Precision: {manual_precision:.6f}")
+        print(f"    Recall: {manual_recall:.6f}")
+        print(f"    F1: {manual_f1:.6f}")
+        print(f"    IoU: {manual_iou:.6f}")
+        
         generated_files = []
         
         # 1. Metrics bar chart
