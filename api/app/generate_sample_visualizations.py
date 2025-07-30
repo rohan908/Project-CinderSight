@@ -82,6 +82,11 @@ class SampleVisualizationGenerator:
         crop_size = self.model_config.get('crop_size', 32)
         expected_features = self.model_config.get('num_features', 171)
         
+        # Transpose from (C, H, W) to (H, W, C) format to match local version
+        if features.shape[0] < features.shape[1]:  # (19, 64, 64) format
+            features = features.transpose(1, 2, 0)  # -> (64, 64, 19)
+            print(f"  Transposed from (19, 64, 64) to (64, 64, 19)")
+        
         # Crop to the expected size (center crop)
         h, w, c = features.shape
         start_h = (h - crop_size) // 2
@@ -120,12 +125,18 @@ class SampleVisualizationGenerator:
         """Preprocess target to match model expectations"""
         crop_size = self.model_config.get('crop_size', 32)
         
+        # Add channel dimension if needed (from (64, 64) to (64, 64, 1))
+        if len(target.shape) == 2:
+            target = target[:, :, np.newaxis]
+            print(f"  Added channel dimension to target: {target.shape}")
+        
         # Crop to the expected size (center crop)
         h, w, c = target.shape
         start_h = (h - crop_size) // 2
         start_w = (w - crop_size) // 2
         cropped = target[start_h:start_h+crop_size, start_w:start_w+crop_size, :]
         
+        print(f"  Target cropped from {h}x{w}x{c} to {crop_size}x{crop_size}x{c}")
         return cropped
     
     def create_sample_directory(self, sample_idx: int, base_dir="visualizations"):
