@@ -48,9 +48,11 @@ app = FastAPI(
 # Add CORS middleware
 if env_config_available:
     allow_origins = EnvConfig.get_allowed_origins_list()
+    print(f"🌐 CORS allowed origins: {allow_origins}")
 else:
     # Fallback to allow all origins if config is not available
     allow_origins = ["*"]
+    print("🌐 CORS: Allowing all origins (fallback mode)")
 
 app.add_middleware(
     CORSMiddleware,

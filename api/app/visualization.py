@@ -81,18 +81,27 @@ class VisualizationAPI:
     
     async def generate_visualizations(self, request: VisualizationRequest, background_tasks: BackgroundTasks):
         """Start visualization generation for a sample"""
+        print(f"🚀 Starting visualization request for sample {request.sample_idx}")
+        print(f"📋 Request data: {request.dict()}")
+        
         try:
             # Validate sample index
+            print(f"🔍 Validating sample index: {request.sample_idx}")
             if request.sample_idx < 0:
                 raise HTTPException(status_code=400, detail="Sample index must be non-negative")
+            print(f"✅ Sample index validation passed")
             
             # Validate paths
+            print(f"🔍 Validating paths and Supabase connection")
             self.validate_paths()
+            print(f"✅ Path validation successful")
             
             # Create unique task ID
             task_id = str(uuid.uuid4())
+            print(f"🆔 Created task ID: {task_id}")
             
             # Initialize response
+            print(f"📝 Initializing response object")
             response = VisualizationResponse(
                 sample_idx=request.sample_idx,
                 status="processing",
@@ -101,23 +110,28 @@ class VisualizationAPI:
                 files_generated=[],
                 metrics=None
             )
+            print(f"✅ Response object created")
             
             # Store task
+            print(f"💾 Storing task in active_tasks")
             active_tasks[task_id] = {
                 "response": response,
                 "request": request,
                 "completed": False,
                 "error": None
             }
+            print(f"✅ Task stored successfully")
             
             # Start background task
+            print(f"🔄 Adding background task")
             background_tasks.add_task(
                 self.process_visualization_task, 
                 task_id, 
                 request
             )
+            print(f"✅ Background task added")
             
-            return {
+            response_data = {
                 "task_id": task_id,
                 "sample_idx": request.sample_idx,
                 "status": "processing",
@@ -125,18 +139,29 @@ class VisualizationAPI:
                 "check_status_url": f"/visualization/status/{task_id}",
                 "download_url": f"/visualization/download/{task_id}"
             }
+            print(f"✅ Returning response: {response_data}")
+            return response_data
             
         except Exception as e:
+            print(f"❌ Error in generate_visualizations: {str(e)}")
+            import traceback
+            print(f"📋 Full traceback: {traceback.format_exc()}")
             raise HTTPException(status_code=500, detail=f"Error starting visualization: {str(e)}")
     
     async def process_visualization_task(self, task_id: str, request: VisualizationRequest):
         """Background task to process visualization generation"""
         try:
+            print(f"🔄 Starting visualization task {task_id} for sample {request.sample_idx}")
+            
             # Download model from Supabase
+            print(f"📥 Downloading model: {EnvConfig.DEFAULT_MODEL_NAME}")
             model_path = self.supabase_manager.download_model(EnvConfig.DEFAULT_MODEL_NAME)
+            print(f"✅ Model downloaded to: {model_path}")
             
             # Initialize generator with downloaded model
+            print(f"🔧 Initializing visualization generator")
             generator = SampleVisualizationGenerator(str(model_path))
+            print(f"✅ Generator initialized")
             
             # Determine output directory
             if request.save_images:
@@ -151,9 +176,11 @@ class VisualizationAPI:
                 output_dir = Path(tempfile.mkdtemp())
             
             # Load data from Supabase for visualization
+            print(f"📊 Loading data from Supabase for split: {EnvConfig.DEFAULT_DATA_SPLIT}")
             features, targets = self.supabase_manager.load_ndws_data_from_supabase(EnvConfig.DEFAULT_DATA_SPLIT)
             if features is None or targets is None:
                 raise Exception("Could not load data from Supabase")
+            print(f"✅ Data loaded - features shape: {features.shape}, targets shape: {targets.shape}")
             
             # Create temporary data directory structure for the visualization function
             temp_data_dir = Path(tempfile.mkdtemp()) / "processed"
@@ -167,6 +194,7 @@ class VisualizationAPI:
                 pickle.dump(targets, f)
             
             # Generate visualizations with loaded data
+            print(f"🎨 Generating visualizations for sample {request.sample_idx}")
             result = generate_single_sample_with_data(
                 request.sample_idx, 
                 generator, 
@@ -174,6 +202,7 @@ class VisualizationAPI:
                 targets,
                 str(output_dir)
             )
+            print(f"✅ Visualization generation completed")
             
             # Clean up temporary data directory
             import shutil
@@ -190,6 +219,9 @@ class VisualizationAPI:
             active_tasks[task_id]["completed"] = True
             
         except Exception as e:
+            print(f"❌ Error in visualization task {task_id}: {str(e)}")
+            import traceback
+            print(f"📋 Full traceback: {traceback.format_exc()}")
             active_tasks[task_id]["response"].status = "failed"
             active_tasks[task_id]["response"].error_message = str(e)
             active_tasks[task_id]["error"] = str(e)
