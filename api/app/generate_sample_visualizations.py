@@ -10,64 +10,9 @@ from typing import Dict, List, Optional, Tuple
 from scipy.ndimage import zoom
 
 # Import config from the local config module
-from .config import ENHANCED_INPUT_FEATURES, DEFAULT_DATA_SIZE
+from .config import ENHANCED_INPUT_FEATURES, DEFAULT_DATA_SIZE, FEATURE_DESCRIPTIONS, FEATURE_CATEGORIES
 
-# Feature descriptions and units from the enhanced dataset paper
-FEATURE_DESCRIPTIONS = {
-    'vs': 'Wind Speed (m/s)',
-    'pr': 'Precipitation (mm/day)',
-    'sph': 'Specific Humidity (kg/kg)',
-    'tmmx': 'Maximum Temperature (°C)',
-    'tmmn': 'Minimum Temperature (°C)',
-    'th': 'Wind Direction (degrees)',
-    'erc': 'Energy Release Component (unitless)',
-    'pdsi': 'Palmer Drought Severity Index (unitless)',
-    'ftemp': 'Forecast Temperature (°C)',
-    'fpr': 'Forecast Precipitation (mm/day)',
-    'fws': 'Forecast Wind Speed (m/s)',
-    'fwd': 'Forecast Wind Direction (degrees)',
-    'elevation': 'Elevation (meters)',
-    'aspect': 'Aspect (degrees)',
-    'slope': 'Slope (degrees)',
-    'ndvi': 'Normalized Difference Vegetation Index (unitless)',
-    'evi': 'Enhanced Vegetation Index (unitless)',
-    'population': 'Population Density (people/km²)',
-    'prevfiremask': 'Previous Day Fire Mask (binary)'
-}
 
-# Feature categories for better organization
-FEATURE_CATEGORIES = {
-    'weather_current': {
-        'features': ['vs', 'pr', 'sph', 'tmmx', 'tmmn', 'th', 'erc', 'pdsi'],
-        'description': 'Current Day Weather Factors',
-        'colormap': 'viridis'
-    },
-    'weather_forecast': {
-        'features': ['ftemp', 'fpr', 'fws', 'fwd'],
-        'description': 'Next Day Weather Forecast',
-        'colormap': 'plasma'
-    },
-    'terrain': {
-        'features': ['elevation', 'aspect', 'slope'],
-        'description': 'Terrain Factors',
-        'colormap': 'terrain'
-    },
-    'vegetation': {
-        'features': ['ndvi', 'evi'],
-        'description': 'Vegetation Indices',
-        'colormap': 'Greens'
-    },
-    'human': {
-        'features': ['population'],
-        'description': 'Human Factors',
-        'colormap': 'Blues'
-    },
-    'fire': {
-        'features': ['prevfiremask'],
-        'description': 'Fire History',
-        'colormap': 'Reds'
-    }
-}
 # Import models and train functions from the local modules
 try:
     from .models import FlameAIModel
@@ -222,8 +167,13 @@ class SampleVisualizationGenerator:
         """Generate separate visualization for each input feature using original data"""
         print("Generating individual feature visualizations...")
         
-        # Use original features for visualization (64x64 with 19 features)
+        # Use original features for visualization - handle different formats
         viz_features = self.original_features
+        
+        # Ensure features are in (64, 64, 19) format for visualization
+        if viz_features.shape[0] < viz_features.shape[1]:  # (19, 64, 64)
+            viz_features = viz_features.transpose(1, 2, 0)  # -> (64, 64, 19)
+            print(f"  Transposed features for visualization: {viz_features.shape}")
         
         generated_files = []
         
@@ -287,12 +237,14 @@ class SampleVisualizationGenerator:
         print("Generating fire progression visualizations...")
         
         # Use original data for visualization (64x64)
-        # Handle different shapes for original_features and original_target
+        # Ensure features are in (64, 64, 19) format for visualization
         if self.original_features.shape[0] < self.original_features.shape[1]:  # (19, 64, 64)
-            orig_prev_fire = self.original_features[-1, :, :]  # Last feature is PrevFireMask
+            orig_features = self.original_features.transpose(1, 2, 0)  # -> (64, 64, 19)
+            orig_prev_fire = orig_features[:, :, -1]  # Last feature is PrevFireMask
         else:  # (64, 64, 19)
             orig_prev_fire = self.original_features[:, :, -1]
             
+        # Ensure target is in (64, 64) format for visualization
         if len(self.original_target.shape) == 2:  # (64, 64)
             orig_ground_truth = self.original_target
         else:  # (64, 64, 1) or (1, 64, 64)

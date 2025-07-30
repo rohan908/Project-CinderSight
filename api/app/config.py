@@ -34,14 +34,14 @@ ENHANCED_INPUT_FEATURES = [
     'slope',     # Slope (degrees)
     
     # Vegetation - 2 features  
-    'NDVI',      # Normalized Difference Vegetation Index
-    'EVI',       # Enhanced Vegetation Index
+    'ndvi',      # Normalized Difference Vegetation Index
+    'evi',       # Enhanced Vegetation Index
     
     # Human factors - 1 feature
     'population', # Population density (people/sq km)
     
     # Fire context - 1 feature
-    'PrevFireMask' # Previous fire mask
+    'prevfiremask' # Previous fire mask
 ]
 
 # Output features (target variable)
@@ -180,4 +180,61 @@ NUM_OUTPUT_CHANNELS = len(OUTPUT_FEATURES)
 
 # Data processing constants
 INVALID_DATA_VALUE = -1.0
-EPSILON = 1e-6  # Small value to avoid division by zero 
+EPSILON = 1e-6  # Small value to avoid division by zero
+
+# Feature descriptions and units from the enhanced dataset paper
+FEATURE_DESCRIPTIONS = {
+    'vs': 'Wind Speed (m/s)',
+    'pr': 'Precipitation (mm/day)',
+    'sph': 'Specific Humidity (kg/kg)',
+    'tmmx': 'Maximum Temperature (°C)',
+    'tmmn': 'Minimum Temperature (°C)',
+    'th': 'Wind Direction (degrees)',
+    'erc': 'Energy Release Component (unitless)',
+    'pdsi': 'Palmer Drought Severity Index (unitless)',
+    'ftemp': 'Forecast Temperature (°C)',
+    'fpr': 'Forecast Precipitation (mm/day)',
+    'fws': 'Forecast Wind Speed (m/s)',
+    'fwd': 'Forecast Wind Direction (degrees)',
+    'elevation': 'Elevation (meters)',
+    'aspect': 'Aspect (degrees)',
+    'slope': 'Slope (degrees)',
+    'ndvi': 'Normalized Difference Vegetation Index (unitless)',
+    'evi': 'Enhanced Vegetation Index (unitless)',
+    'population': 'Population Density (people/km²)',
+    'prevfiremask': 'Previous Day Fire Mask (binary)'
+}
+
+# Feature categories for better organization
+FEATURE_CATEGORIES = {
+    'weather_current': {
+        'features': ['vs', 'pr', 'sph', 'tmmx', 'tmmn', 'th', 'erc', 'pdsi'],
+        'description': 'Current Day Weather Factors',
+        'colormap': 'viridis'
+    },
+    'weather_forecast': {
+        'features': ['ftemp', 'fpr', 'fws', 'fwd'],
+        'description': 'Next Day Weather Forecast',
+        'colormap': 'plasma'
+    },
+    'terrain': {
+        'features': ['elevation', 'aspect', 'slope'],
+        'description': 'Terrain Factors',
+        'colormap': 'terrain'
+    },
+    'vegetation': {
+        'features': ['ndvi', 'evi'],
+        'description': 'Vegetation Indices',
+        'colormap': 'Greens'
+    },
+    'human': {
+        'features': ['population'],
+        'description': 'Human Factors',
+        'colormap': 'Blues'
+    },
+    'fire': {
+        'features': ['prevfiremask'],
+        'description': 'Fire History',
+        'colormap': 'Reds'
+    }
+} 
