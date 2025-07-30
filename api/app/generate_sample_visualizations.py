@@ -287,8 +287,19 @@ class SampleVisualizationGenerator:
         print("Generating fire progression visualizations...")
         
         # Use original data for visualization (64x64)
-        orig_prev_fire = self.original_features[:, :, -1]  # Last feature is PrevFireMask
-        orig_ground_truth = self.original_target[:, :, 0]
+        # Handle different shapes for original_features and original_target
+        if self.original_features.shape[0] < self.original_features.shape[1]:  # (19, 64, 64)
+            orig_prev_fire = self.original_features[-1, :, :]  # Last feature is PrevFireMask
+        else:  # (64, 64, 19)
+            orig_prev_fire = self.original_features[:, :, -1]
+            
+        if len(self.original_target.shape) == 2:  # (64, 64)
+            orig_ground_truth = self.original_target
+        else:  # (64, 64, 1) or (1, 64, 64)
+            if self.original_target.shape[0] < self.original_target.shape[1]:  # (1, 64, 64)
+                orig_ground_truth = self.original_target[0, :, :]
+            else:  # (64, 64, 1)
+                orig_ground_truth = self.original_target[:, :, 0]
         
         # Use prediction results (32x32) - resize for comparison
         pred_probability = prediction[:, :, 0]
