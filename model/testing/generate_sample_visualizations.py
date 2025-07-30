@@ -374,6 +374,9 @@ class SampleVisualizationGenerator:
     def generate_metrics_dashboard(self, prediction: np.ndarray, target: np.ndarray, output_dir: Path):
         """Generate separate metrics visualizations for the sample"""
         print("Generating metrics visualizations...")
+        print(f"  Prediction shape: {prediction.shape}, Target shape: {target.shape}")
+        print(f"  Prediction range: [{prediction.min():.3f}, {prediction.max():.3f}]")
+        print(f"  Target range: [{target.min():.3f}, {target.max():.3f}]")
         
         # Calculate metrics
         pred_tensor = torch.FloatTensor(prediction).unsqueeze(0)
@@ -575,11 +578,31 @@ def generate_single_sample(sample_idx: int, generator: SampleVisualizationGenera
         # Generate prediction
         prediction = generator.predict_sample(features)
         
+        # Upscale prediction back to original size for proper metrics calculation
+        original_h, original_w = generator.original_target.shape[:2]
+        
+        # Handle different prediction shapes
+        if len(prediction.shape) == 3:
+            # 3D prediction (H, W, C) - provide zoom factors for all dimensions
+            zoom_factors = (original_h/prediction.shape[0], original_w/prediction.shape[1], 1.0)
+        else:
+            # 2D prediction (H, W) - provide zoom factors for spatial dimensions only
+            zoom_factors = (original_h/prediction.shape[0], original_w/prediction.shape[1])
+        
+        upscaled_prediction = zoom(prediction, zoom_factors, order=1)
+        
+        # Ensure upscaled prediction has same shape as original target
+        if len(upscaled_prediction.shape) == 2:
+            upscaled_prediction = upscaled_prediction[:, :, np.newaxis]
+        
+        print(f"  Upscaled prediction from {prediction.shape} to {upscaled_prediction.shape}")
+        print(f"  Original target shape: {generator.original_target.shape}")
+        
         # Generate all visualizations
         feature_files = generator.generate_individual_feature_visualizations(features, output_dir)
         fire_files = generator.generate_fire_progression_visualization(
-            features, target, prediction, output_dir)
-        metrics_files, metrics = generator.generate_metrics_dashboard(prediction, target, output_dir)
+            features, target, upscaled_prediction, output_dir)
+        metrics_files, metrics = generator.generate_metrics_dashboard(upscaled_prediction, generator.original_target, output_dir)
         metrics_file_path, doc_file_path = generator.generate_sample_summary(
             sample_idx, metrics, feature_files, fire_files, metrics_files, output_dir)
         

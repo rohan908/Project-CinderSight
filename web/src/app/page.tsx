@@ -85,10 +85,10 @@ export default function Home() {
     fetchSampleCount()
   }, [])
 
-  // Load random sample on mount
+  // Load sample 0 on mount
   useEffect(() => {
     if (availableSamples > 0) {
-      loadRandomSample()
+      loadSpecificSample(295)
     }
   }, [availableSamples])
 
