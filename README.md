@@ -1,4 +1,4 @@
-# CinderSight - Canadian Fire Prediction
+# CinderSight - Wildfire Prediction
 
 Advanced wildfire prediction powered by neural networks.
 
@@ -131,6 +131,19 @@ The processing script performs:
 Due to the unfortunate lack of sequential data provided in the NDWS dataset, the temporal pieces of the architecture had to be removed or altered. Here is a diagram of the modified architecture, without the transformer and encoder blocks:
 
 ![Model Diagram](images/model_diagram.png)
+
+### **Model Input Processing**
+
+**Important**: The model operates on center-cropped 32×32 pixel regions, not the full 64×64 input data:
+
+1. **Input Data**: Original 64×64×19 feature maps from the enhanced dataset
+2. **Center Cropping**: Data is center-cropped to 32×32×19 to match the model's training configuration
+3. **Feature Expansion**: The 19 features are expanded to 171 features through spatial context processing using the `add_surrounding_position` function, which incorporates information from each pixel's 8 neighboring pixels (9 total positions × 19 features = 171 channels)
+4. **Model Processing**: The 32×32×171 input is processed through the CNNModel and NextFramePredictor
+5. **Output**: 32×32×1 prediction map
+6. **Upscaling**: For visualization and metrics calculation, the prediction is upscaled back to 64×64 to ensure proper alignment with the original ground truth data
+
+This cropping approach was used during training to focus on the most relevant central regions where fires typically occur, while the upscaling ensures accurate performance evaluation against the full-resolution ground truth.
 
 ## Results
 

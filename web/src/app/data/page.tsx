@@ -160,13 +160,15 @@ export default function DataPage() {
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-lg font-semibold text-gray-800 mb-3">Data Augmentation & Normalization</h4>
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">Data Augmentation & Spatial Processing</h4>
               <div className="space-y-2 text-sm text-gray-600">
                 <p>• <strong>Value Clipping</strong>: Features clipped to remove extreme values (0.1st to 99.9th percentiles)</p>
                 <p>• <strong>Normalization</strong>: Mean and standard deviation normalization from training dataset</p>
                 <p>• <strong>Random Cropping</strong>: 32×32 km regions randomly cropped from 64×64 km regions</p>
                 <p>• <strong>Rotation</strong>: Each sample rotated by 0°, 90°, 180°, and 270° for data variability</p>
                 <p>• <strong>Center Cropping</strong>: Focused analysis since fires are generally centered</p>
+                <p>• <strong>Spatial Context Processing</strong>: Each pixel's 19 features are expanded to 171 features by incorporating surrounding 8 neighboring pixels (9 total positions × 19 features = 171 channels)</p>
+                <p>• <strong>Surrounding Position Function</strong>: Creates spatial context by concatenating center pixel with up, down, left, right, and diagonal neighbors</p>
               </div>
             </div>
           </div>
