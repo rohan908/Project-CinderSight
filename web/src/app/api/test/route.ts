@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // Ensure API URL has proper protocol
-let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+let API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
 
 // Add https:// if no protocol is specified
 if (!API_BASE_URL.startsWith('http://') && !API_BASE_URL.startsWith('https://')) {

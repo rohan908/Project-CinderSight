@@ -89,8 +89,8 @@ docker-compose up -d --build
 
 The application will be available at:
 - **Frontend**: http://localhost:3000
-- **Backend API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
+- **Backend API**: http://localhost:8080
+- **API Docs**: http://localhost:8080/docs
 
 ### 4. Local Development
 
@@ -105,7 +105,7 @@ npm run dev
 ```bash
 cd api
 pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 ```
 
 ## GitHub Workflows
@@ -319,7 +319,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 # API Configuration
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=8080
 DEBUG=True
 
 # CORS Configuration

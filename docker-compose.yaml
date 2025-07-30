@@ -7,7 +7,7 @@ services:
   api:
     build: ./api
     env_file: .env
-    ports: ["8000:8000"]
+    ports: ["8080:8080"]
   db:
     image: postgres:15
     restart: always

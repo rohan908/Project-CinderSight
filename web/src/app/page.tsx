@@ -95,7 +95,7 @@ export default function Home() {
   const fetchSampleCount = async () => {
     try {
       // Ensure API URL has proper protocol
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
       
       // Add https:// if no protocol is specified
       if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
@@ -134,7 +134,7 @@ export default function Home() {
       setSelectedSample(randomIndex)
       
       // Generate visualizations for this sample
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
       
       // Add https:// if no protocol is specified
       if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
@@ -178,7 +178,7 @@ export default function Home() {
   const pollForCompletion = async (taskId: string) => {
     const maxAttempts = 60 // 5 minutes with 5-second intervals
     let attempts = 0
-    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
     
     // Add https:// if no protocol is specified
     if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
@@ -256,7 +256,7 @@ export default function Home() {
       setSelectedSample(sampleIdx)
       
       // Generate visualizations for this sample
-      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+      let apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
       
       // Add https:// if no protocol is specified
       if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {

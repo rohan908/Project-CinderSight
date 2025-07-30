@@ -19,7 +19,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
 
 # API Configuration
 API_HOST=0.0.0.0
-API_PORT=8000
+API_PORT=8080
 DEBUG=True
 
 # CORS Configuration
@@ -123,7 +123,7 @@ The updated API now includes:
 
 1. Set up your environment variables
 2. Install dependencies: `pip install -r requirements.txt`
-3. Start the server: `uvicorn app.main:app --host 0.0.0.0 --port 8000`
+3. Start the server: `uvicorn app.main:app --host 0.0.0.0 --port 8080`
 
 ### API Endpoints
 
@@ -136,7 +136,7 @@ The API will automatically:
 
 Check the API status:
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8080/health
 ```
 
 This will return:
