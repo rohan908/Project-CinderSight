@@ -99,13 +99,23 @@ class SupabaseManager:
             if not response.data:
                 raise ValueError("No models found in database")
             
+            print(f"🔍 Raw models data from database: {response.data}")
+            
             model_paths = {}
             for model in response.data:
-                model_name = model.get('name', 'unknown')
+                model_name = model.get('model_name', 'unknown')  # Use 'model_name' column
                 model_path = model.get('model_path', '')
+                print(f"📋 Model record - model_name: '{model_name}', path: '{model_path}'")
+                
                 if model_path:
+                    # Add .pth extension if missing
+                    if not model_name.endswith('.pth'):
+                        model_name = f"{model_name}.pth"
+                    
+                    print(f"🔧 Using model name: '{model_name}' for path: '{model_path}'")
                     model_paths[model_name] = model_path
             
+            print(f"📊 Final model_paths: {model_paths}")
             logger.info(f"Retrieved {len(model_paths)} model paths from database")
             return model_paths
             
